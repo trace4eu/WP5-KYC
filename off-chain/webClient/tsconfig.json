@@ -1,0 +1,18 @@
+{
+    "compilerOptions": {
+      "paths": {
+        "crypto": ["node_modules/crypto-browserify"],
+        "http": ["node_modules/stream-http"]
+      // "https":["node_modules/https-browserify"]
+    },
+      "baseUrl": "./src",
+      "target": "es6",
+      "allowJs": true,
+      "jsx": "react",
+      "moduleResolution": "node",
+      "outDir": "./dist",
+      "strict": true,
+      "esModuleInterop": true
+    },
+    "include": ["src/**/*"]
+  }
