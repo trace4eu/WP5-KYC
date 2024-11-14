@@ -50,24 +50,7 @@ export class AdminController {
     }
 
 
-     @HttpCode(200)
-     @Post("/newProduct")
-     async newProduct(
-       @Headers("content-type") contentType: string | undefined,
-     //  @Headers("authorization") authorizationHeader: string,
-       @Body() body: NewProductDto
-     ): Promise<CheckResult> {
-       // Only accept application/json
-       // https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#section-7.2
-       if (!contentType ||
-         !contentType.toLowerCase().includes("application/json")) {
-         throw new OAuth2Error("invalid_request", {
-           errorDescription: "Content-type must be application/json",
-         });
-       }
-   
-       return await this.adminService.newProduct( body);
-     }
+ 
 
      @HttpCode(200)
      @Patch("/eventDetails")
@@ -88,64 +71,7 @@ export class AdminController {
        return await this.adminService.eventDetails( body);
      }
 
-     @Get("/actors")
-     @HttpCode(201)
-     async actors(
-       @Req() req: Request,
-       @Query() params:paginateActorsDto
-       ): Promise<object> {
-       const {productName, page,limit} = params;
-       console.log('params->'+JSON.stringify(params));
-    
-   
-       let page1:number,limit1:number;
-       if (!page) page1=1; else page1 = Number(page);
-       if (!limit) limit1=5; else limit1 = Number(limit);
-   
-       return await this.adminService.actors(productName,page1,limit1);
-     }
 
-    //  @Get("/products")
-    //  @HttpCode(201)
-    //  async products(
-    //    @Req() req: Request,
-    //    @Query() params:ProductsDto
-    //    ): Promise<object> {
-    //    const {productName} = params;
-    //    console.log('params->'+JSON.stringify(params));
-  
-   
-    //    return await this.adminService.products(productName);
-    //  }
-   
-  @Get("/getsharedVCs")
-  @HttpCode(201)
-  async getSubmittedvcs(
-    @Req() req: Request,
-    @Query() params:paginateDto
-    ): Promise<object> {
-    const {page,limit,searchtext,order} = params;
-    console.log('params->'+JSON.stringify(params));
-    const headers = req.headers as unknown as {email:string};
-  
-    //added by auth.middleware in request
-    const email= headers.email;
-    console.log('email->'+email);
-
-    let page1:number,limit1:number;
-    if (!page) page1=1; else page1 = Number(page);
-    if (!limit) limit1=5; else limit1 = Number(limit);
-
-    return await this.adminService.getsharedvcs(email,page1,limit1,searchtext,order);
-  }
-
-  @Get("/sharedVC/:shared_id")
-  @HttpCode(201)
-  async submittedvc(
-    @Param() params: {shared_id:string}
-  ): Promise<object> {
-    return await this.adminService.sharedvc(params.shared_id);
-  }
 
   @HttpCode(200)
   @Post('changepwd',)

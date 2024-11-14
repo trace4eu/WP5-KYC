@@ -57,18 +57,7 @@ export class TnTController {
     return this.tntService.getCredentialIssuerMetadata();
   }
 
-  @Get("/active_actors")
-  @HttpCode(201)
-  async actors(
-   
-    @Query() params:availActorsDto
-    ): Promise<object> {
-    const {productName} = params;
-    console.log('params->'+JSON.stringify(params));
- 
 
-    return await this.tntService.active_actors(productName);
-  }
 
   //offered by CBC. called by other banks wishing to onBoard
   @Get('/getOnBoard')
@@ -106,65 +95,6 @@ export class TnTController {
     return this.tntService.postCredential(authorizationHeader, body);
   }
 
-  @Get("/products")
-  @HttpCode(200)
-  async products(
-    //@Req() req: Request,
-    @Query() params:ProductsDto
-    ): Promise<object> {
-    const {productName} = params;
-    console.log('params->'+JSON.stringify(params));
-
-
-    return await this.tntService.products(productName);
-  }
-
-  //returns only pending batches. for all or specific actor
-  @Get("/pendingBatches")
-  @HttpCode(200)
-  async pendingBatches(
-    //@Req() req: Request,
-    @Query() params:TnTqueryDto
-    ): Promise<object> {
-  
-    console.log('params->'+JSON.stringify(params));
-
-
-    return await this.tntService.pendingBatches(params);
-  }
-
-  //returns only completed batches. for all or specific lastinchain actor
-  @Get("/completedBatches")
-  @HttpCode(200)
-  async completedBatches(
-    //@Req() req: Request,
-    @Query() params:TnTqueryDto
-    ): Promise<object> {
-  
-    console.log('params->'+JSON.stringify(params));
-
-
-    return await this.tntService.completedBatches(params);
-  }
-
-   //returns completed events for specific actor, in pending or completed batches 
-   @Get("/completedTasks")
-   @HttpCode(200)
-   async completedTasks(
-     //@Req() req: Request,
-     @Query() params:TnTqueryDto
-     ): Promise<object> {
-   
-     console.log('params->'+JSON.stringify(params));
- 
-     if (!params.actordid || !params.allowedEvent) {
-      throw new OAuth2Error("invalid_request", {
-        errorDescription: "both actordid and allowedEvent are needed",
-      });
-     }
- 
-     return await this.tntService.completedTasks(params);
-   }
 
    @Get("/document")
    @HttpCode(200)
@@ -197,24 +127,6 @@ export class TnTController {
     return await this.tntService.init_KYC_share( body);
   }
 
-  @HttpCode(201)
-  @Post("/update_batch")
-  async update_batch(
-    @Headers("content-type") contentType: string | undefined,
-  //  @Headers("authorization") authorizationHeader: string,
-    @Body() body: UpdateBatchDto
-  ): Promise<CheckResult> {
-    // Only accept application/json
-  
-    if (!contentType ||
-      !contentType.toLowerCase().includes("application/json")) {
-      throw new OAuth2Error("invalid_request", {
-        errorDescription: "Content-type must be application/json",
-      });
-    }
-
-    return await this.tntService.update_batch( body);
-  }
 
    
    @HttpCode(200)
