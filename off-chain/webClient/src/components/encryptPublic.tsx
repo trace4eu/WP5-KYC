@@ -1,4 +1,5 @@
 import { JWK } from "jose";
+import { fromHexString, toHexString } from "./app";
 
 window.Buffer = window.Buffer || require('buffer').Buffer;
 
@@ -85,6 +86,16 @@ window.Buffer = window.Buffer || require('buffer').Buffer;
  //issuer  did: did:ebsi:zg4w51ujVxcVbok59meAUhK
   //issuer key privateKeyHex = "0x4b43a104456b51ef2387398a46fb910062556693d5dd984562d05bd1146915f0";
 
+  function toArrayBuffer(myBuf:Buffer) {
+    var myBuffer = new ArrayBuffer(myBuf.length);
+    var res = new Uint8Array(myBuffer);
+    for (var i = 0; i < myBuf.length; ++i) {
+       res[i] = myBuf[i];
+    }
+    return myBuffer;
+ }
+
+
   export async function generateEncKey(): Promise<string> {
 
     const key = await window.crypto.subtle.generateKey(
@@ -110,8 +121,29 @@ window.Buffer = window.Buffer || require('buffer').Buffer;
     return str;
   }
 
+
+  export async function cryptoKeyToHexString(key:CryptoKey): Promise<string> {
+
+ 
+    
+      let exportedKey1 = await crypto.subtle.exportKey('raw', key);
+  
+      console.log('exportedkey buffer->'+exportedKey1);
+     // const decoder = new TextDecoder();
+
+     // const str = Buffer.from(exportedKey1).toString('binary');
+
+      const hexkey = toHexString(new Uint8Array(exportedKey1));
+    
+      console.log('exportedkey hexkey->'+hexkey);
+      
+
+    return hexkey;
+  }
+
+
   export async function encryptEncryptionKey(
-    clearEncryptionKey:string,
+    clearEncryptionHexKey:string,
     publicEncryptionKeyJWK: JWK,
     privateEncryptionKeyJWK: JWK
   ): Promise<string> {
@@ -185,25 +217,26 @@ var key = await crypto.subtle.deriveKey({
 const iv = Buffer.from("KYC-encryption");
 
 
+const clearEncryptionKey = fromHexString(clearEncryptionHexKey);
+//const uint8Array = Buffer.from(clearEncryptionKey,'binary');
 
-const uint8Array = Buffer.from(clearEncryptionKey,'binary');
-//const uint8Array = new TextEncoder().encode(clearEncKey)
 
 const encrypted = await crypto.subtle.encrypt({
     "name": "AES-GCM",
     "iv": iv
-}, key, uint8Array) //new TextEncoder().encode(encryptionKey));  //Buffer.from(encryptionKey)
+}, key, clearEncryptionKey) //new TextEncoder().encode(encryptionKey));  //Buffer.from(encryptionKey)
 
 //encryptedKeyInTnT = new TextDecoder().decode(encrypted);
 //encryptedKeyInTnT = Array.prototype.map.call(encrypted, (c) => String.fromCharCode(c)).join('');
    //send this with update_event
-   const encryptedKeyInTnT = Buffer.from(encrypted).toString('binary');
+  // const encryptedKeyInTnT = Buffer.from(encrypted).toString('binary');
+   const encryptedKeyInTnT = toHexString(new Uint8Array(encrypted));
    return encryptedKeyInTnT;
   }
 
 
   export async function decryptEncryptionKey(
-    cipherEncKey:string,
+    cipherEncHexKey:string,
     publicEncryptionKeyJWK: JWK,
     privateEncryptionKeyJWK: JWK
   ): Promise<ArrayBuffer> {
@@ -264,8 +297,8 @@ console.log('after derive key');
 
 
 //get it from event data
-const uint8Array = Buffer.from(cipherEncKey, 'binary');
-
+//const uint8Array = Buffer.from(cipherEncKey, 'binary');
+const uint8Array = fromHexString(cipherEncHexKey);
 const decrypted = await crypto.subtle.decrypt({
     "name": "AES-GCM",
     "iv": iv

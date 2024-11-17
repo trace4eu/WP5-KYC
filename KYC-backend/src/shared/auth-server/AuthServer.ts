@@ -29,11 +29,7 @@ import type { Cache } from "cache-manager";
 //import type { EventGateway } from "../../gateways/event.gateway.js";
 //import type { ReceivedVCDocument } from "../models/receivedvcs.model.js";
 import type { Model } from "mongoose";
-import type GetBeTokenDto from "./dto/get-betoken.dto.js";
-import type GetBeAuthDto from "./dto/get-beauthorize.dto.js";
-import OAuth2TokenError from "../errors/OAuth2TokenError.js";
-import { AuthPINDocument } from "../models/authpins.model.js";
-//import { IssuedVCDocument } from "../models/issuedvcs.model.js";
+
 import { BanksDocument } from "../models/banks.model.js";
 
 export class AuthServer {

@@ -217,13 +217,23 @@ export type HolderWalletCredentialType =
   (typeof HOLDER_WALLET_CREDENTIAL_TYPES)[number];
 
 
-  export interface KnownIssuerMetadata {
-   
-    issuer_name: string;
-    issuer_url: string;  
-    supported_vc_type: string;
+export interface KnownIssuerMetadata {
   
-    };
+  issuer_name: string;
+  issuer_url: string;  
+  supported_vc_type: string;
 
-    export type KnownIssuersMetadata = KnownIssuerMetadata[];
+  };
+
+export type KnownIssuersMetadata = KnownIssuerMetadata[];
+
+export interface BankInfo {
+  
+  bankName: string;
+  bankDID: string;  
+  bankUrl: string;
+
+  };
+
+export type BanksInfo = BankInfo[];
   

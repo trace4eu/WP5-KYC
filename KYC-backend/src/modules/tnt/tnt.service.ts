@@ -77,6 +77,8 @@ import { LogsService } from "../logs/logs.service.js";
 
 
 import type {
+  BankInfo,
+  BanksInfo,
   CheckResult,
  
   CredentialIssuerMetadata,
@@ -91,7 +93,6 @@ import type {
 
 import { InjectModel } from "@nestjs/mongoose";
 
-import { IssuedVC, IssuedVCDocument } from "../../shared/models/issuedvcs.model.js";
 import type { Model } from "mongoose";
 import { EbsiVerifiablePresentation, VerifyPresentationJwtOptions, VpJwtPayload, verifyPresentationJwt } from "@cef-ebsi/verifiable-presentation";
 //import type { EbsiVerifiableAttestation } from "@cef-ebsi/verifiable-credential";
@@ -115,7 +116,7 @@ import { Product, ProductDocument } from "../../shared/models/products.model.js"
 import axios, { AxiosError, AxiosResponse } from "axios";
 import { logAxiosRequestError, signAndSendTransaction, waitToBeMined } from "../../shared/credential-issuer/utils.js";
 import { Alg, BatchAll, CompletedBatch, CompletedTask, PaginatedList, PDOdocument, PDOEvent, PendingBatch, PendingBatchAll, PendingTask, RequiredEvent, TnTDocument, TnTEvent, UnknownObject, UnsignedTransaction } from "./interfaces/index.js";
-import { multibaseEncode, removePrefix0x } from "./utils/utils.js";
+import { fromHexString, multibaseEncode, removePrefix0x } from "./utils/utils.js";
 import createVPJwt from "./utils/verifiablePresentation.js";
 import Client from "./utils/Client.js";
 import crypto from "node:crypto";
@@ -127,6 +128,10 @@ import { Bank, BanksDocument } from "../../shared/models/banks.model.js";
 import qs from "qs";
 import { OPMetadata, TokenResponse } from "../../shared/auth-server/interfaces.js";
 import { PostTokenPreAuthorizedCodeDto } from "src/shared/auth-server/index.js";
+import { MockDecryptDto } from "../admin/dto/decrypt.dto.js";
+import { getPublicKeyJWK_fromDID } from "./utils/didresolver.js";
+import { getResolver as getEbsiDidResolver } from "@cef-ebsi/ebsi-did-resolver";
+import { getResolver as getKeyDidResolver } from "@cef-ebsi/key-did-resolver";
 
 type EbsiVerifiableAttestations = EbsiVerifiableAttestation20221101 | EbsiVerifiableAttestation202401;
 //type LevelIssuer = Level<LevelDbKeyIssuer, LevelDbObjectIssuer>;
@@ -202,7 +207,7 @@ export class TntService /*implements OnModuleInit, OnModuleDestroy*/ {
    * EBSI DID v1 Resolver
    */
   private readonly ebsiResolver: Resolver;
-
+  private readonly didkeyResolver: Resolver;
   /**
    * Key DID v1 Resolver
    */
@@ -283,10 +288,9 @@ export class TntService /*implements OnModuleInit, OnModuleDestroy*/ {
     // private dataStoreService: DataStoreService,
     // private logsService: LogsService,
     
-    @InjectModel(IssuedVC.name) private IssuedVCModel: Model<IssuedVCDocument>,
+   
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
-    @InjectModel(RevList.name) private RevListModel: Model<RevListDocument>,
-    @InjectModel(Product.name) private ProductModel: Model<ProductDocument>,
+  
     @InjectModel(Bank.name) private bankModel: Model<BanksDocument>,
 
   ) {
@@ -341,9 +345,9 @@ export class TntService /*implements OnModuleInit, OnModuleDestroy*/ {
       "trustedPoliciesRegistryApiUrl"
     );
     this.ledgerApiUrl = configService.get<string>("ledgerApiUrl");
-    this.ebsiResolver = new Resolver(
-      getResolver()  // getEbsiDidResolver({ registry: this.didRegistryApiUrl })
-    );
+    // this.ebsiResolver = new Resolver(
+    //   getResolver()  // getEbsiDidResolver({ registry: this.didRegistryApiUrl })
+    // );
     this.keyResolver = new Resolver();  //new Resolver(getKeyDidResolver());
     this.timeout = configService.get<number>("requestTimeout");
     this.ebsiAuthority = configService
@@ -365,6 +369,12 @@ export class TntService /*implements OnModuleInit, OnModuleDestroy*/ {
       ES256K: undefined,
     };
 
+    const resolverConfig = {
+      registry: "https://api-pilot.ebsi.eu/did-registry/v5/identifiers",
+    };
+    
+    this.ebsiResolver = new Resolver(getEbsiDidResolver(resolverConfig));
+    this.didkeyResolver = new Resolver(getKeyDidResolver());
 
   }
 
@@ -605,6 +615,43 @@ export class TntService /*implements OnModuleInit, OnModuleDestroy*/ {
   }
 
   
+ async banks(): Promise<BanksInfo> {
+  
+  if (this.opMode !== "CBC") {
+    this.logger.error('only available to CBC');
+    throw new BadRequestError(
+     'only available to CBC'
+    )
+  }
+
+  const data = await this.bankModel.find({bankName : {$exists: true},bankUrl : {$exists: true}}).exec();
+  if (!data || data.length == 0) {
+    return [];
+  }
+
+  const result:BanksInfo = [];
+  data.map((element: Bank)=> {
+ 
+   result.push(
+       
+              {
+              bankName: element.bankName,
+              bankDID: element.bankDID,
+              bankUrl: element.bankUrl
+              }
+           
+             )
+           
+ 
+  });
+
+return result;
+
+
+
+  
+}
+  
   async adminReqOnboard(CBCurl: string, pin: string): Promise<CheckResult> {
 
     const response = await this.getAuthVC(CBCurl,pin);
@@ -652,7 +699,233 @@ export class TntService /*implements OnModuleInit, OnModuleDestroy*/ {
    
   }
 
+  // stringToArrayBuffer(str: string) {
+  //   const arr = new Uint8Array(str.length / 8);
+  //   for(let i = 0; i<str.length; i+=8) {
+  //     arr[i/8] = parseInt(str.slice(i, i+8), 2);
+  //   }
+  //   return arr;
+  // }
+
+  async adminMockDecryptDocs(mockDecryptDto: MockDecryptDto): Promise<CheckResult|Buffer> {
+
+    const {offchainFile,encEncKey,walletDID} = mockDecryptDto;
+
+    //decrypt encrypted encryption key
+
+    const publicKeyJwkWallet = await getPublicKeyJWK_fromDID(walletDID,this.didkeyResolver,this.ebsiResolver);
+
+    if (!publicKeyJwkWallet) {
+      console.log('could not get publickey from did');
+      return {
+        success: false,
+        errors: [
+          'could not get publickey from did'
+        ],
+      };
+    }
+
+    console.log('public wallet->'+JSON.stringify(publicKeyJwkWallet));
+
+    let decryptionKey;
+    const {privateKeyJwk} = await this.getIssuerKeyPair("ES256");
+    if (privateKeyJwk) {
+      
+      decryptionKey = await this.decryptEncryptionKey(
+        encEncKey,
+        publicKeyJwkWallet,
+        privateKeyJwk
+      )
+    } else {
+      console.log('no issuer key pair');
+    }
+    console.log('decryption Key->'+decryptionKey);
+
+    //use decryptionKey to decrypt the encrypted docs in off-chain
+    //import key first
+    let docsDecryptionKey;
+
+    if (decryptionKey) {
+        docsDecryptionKey = await crypto.subtle.importKey(
+          "raw",
+          decryptionKey,
+      
+          "AES-GCM",
+          true,
+          ["decrypt"]
+        );
+    } else {
+
+      return {
+        success: false,
+        errors: [
+          'could not get decryption key'
+        ],
+      };
+    }
+
+    //get encrypted doc from off-chain
+
+  let encryptedDoc;
+   try {
+    
+    //changed from axios.get
+     encryptedDoc = await fetch(`http://localhost:3000/download?file=${offchainFile}`);
+     //console.log('encypted doc data length->'+encryptedDoc.length);
+     
+   } catch (e) {
+    console.log('error doesnling file ');
+    return {
+      success: false,
+      errors: [
+        `error downloading encrypted doc ${e}`
+      ],
+    };
+   }
+
+   if (encryptedDoc && !encryptedDoc.ok) {
+    console.log('fetch error->'+JSON.stringify(await encryptedDoc.json()));
+    return {
+      success: false,
+      errors: [
+        `error downloading encrypted doc`
+      ],
+    };
+   }
+
+   if (encryptedDoc && encryptedDoc.ok ) {
+      
+    console.log('starting decryption');
+    const dataBuffer = await encryptedDoc.arrayBuffer();
+    //const dataBuffer = await encryptedDoc.data.arrayBuffer();
+   // const dataBuffer = this.stringToArrayBuffer(encryptedDoc.data);
+  //  console.log('encypted doc data length->'+dataBuffer.length);
+    let cleartext: ArrayBuffer;
+    const iv = Buffer.from("KYC-encryption");
+    const cipher = Buffer.from(dataBuffer);
+    try {
+     cleartext = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv },
+        docsDecryptionKey,
+        cipher,
+      );
+      console.log('decryption completed');
+    //   console.log('decrypted->'+cleartext.byteLength);
+    } catch (e) {
+
+      return {
+        success: false,
+        errors: [ 
+          `could not decrypt KYC doc ${e}`
+        ],
+      };
+    }
+    if (cleartext) {
+    const clearDataBuffer = Buffer.from(cleartext);
+   // const clearText = clearDataBuffer.toString('binary');
+   //console.log('clearTExt->'+clearDataBuffer);
+    return clearDataBuffer;
+
+    }
+    
+   }
+
+   return {
+    success: false,
+    errors: [
+      `something went wrong`
+    ],
+   }
+    
+  }
   
+
+  async  decryptEncryptionKey(
+    cipherEncHexKey:string,
+    publicEncryptionKeyJWK: JWK,
+    privateEncryptionKeyJWK: JWK
+  ): Promise<ArrayBuffer> {
+
+    const iv = Buffer.from("KYC-encryption");
+
+    console.log('before import keyWalletPublic');
+    const keyWalletPublic = await crypto.subtle.importKey(
+        "jwk",
+        publicEncryptionKeyJWK,
+        {
+          name: "ECDH",
+          namedCurve: "P-256",
+        },
+        true,
+       // ['sign']
+       []
+      ) 
+
+      console.log('after keyWalletPublic');
+
+    const keyIssuerPrivate = await crypto.subtle.importKey(
+        "jwk",
+        privateEncryptionKeyJWK,
+        {
+          name: "ECDH",
+          namedCurve: "P-256",
+        },
+        true,
+        ['deriveBits']
+      );
+
+      console.log('detivedbits 2');
+
+      var sharedBitsIssuer = await crypto.subtle.deriveBits({
+        "name": "ECDH",
+        "public": keyWalletPublic
+    }, keyIssuerPrivate, 256);
+  
+// // The first half of the resulting raw bits is used as a salt.
+var sharedDS = sharedBitsIssuer.slice(0, 16);
+
+// // The second half of the resulting raw bits is imported as a shared derivation key.
+var sharedDKIssuer = await crypto.subtle.importKey('raw', sharedBitsIssuer.slice(16, 32), "PBKDF2", false, ['deriveKey']);
+
+// // A new shared AES-GCM encryption / decryption key is generated using PBKDF2
+// // This is computed separately by both parties and the result is always the same.
+var key = await crypto.subtle.deriveKey({
+    "name": "PBKDF2",
+    "salt": sharedDS,
+    "iterations": 100000,
+    "hash": "SHA-256"
+}, sharedDKIssuer, {
+    "name": "AES-GCM",
+    "length": 256
+}, true, ['encrypt', 'decrypt']);
+
+console.log('after derive key');
+
+
+//get it from event data
+//const uint8Array = Buffer.from(cipherEncKey, 'binary');
+const uint8Array = fromHexString(cipherEncHexKey);
+const decryptedEncKey = await crypto.subtle.decrypt({
+    "name": "AES-GCM",
+    "iv": iv
+}, key, uint8Array);
+
+console.log('decrypted key buffer->'+decryptedEncKey);
+// // The humans decode the message into human readable text...
+// var decoded = new TextDecoder().decode(decryptedEncKey);
+
+// // // The humans output the message to the console and gasp!
+//  console.log('decrypted key decoded->'+decoded);
+
+ //use decrypted enckey to decrypt the off-chain docs
+ console.log('key length='+Buffer.from(decryptedEncKey).length);
+
+
+ return decryptedEncKey;
+
+  }
+
+
   //returns error checkresult or vc
   async getAuthVC(CBCurl:string,pin:string) 
   : Promise<CheckResult | string>
@@ -1331,44 +1604,6 @@ export class TntService /*implements OnModuleInit, OnModuleDestroy*/ {
 
   }
 
-  
-  async products(productName:string|undefined): Promise<object> {
-
-  
-
-    const data = await this.ProductModel.find({productName: productName ? productName : {$exists: true}}).exec();
-    if (!data || data.length == 0) {
-      return [];
-    }
- 
-   
-
-      if (productName)
-      {
-     
-     
-        return {
-          requiredEvents: data[0]?.requiredEvents,
-          lastInChainEvent: data[0]?.lastInChainEvent,
-          eventsDetails: data[0]?.eventsDetails
-        };
-      } else {
-        const result2:string[] = [];
-         data.map((element: Product)=> {
-        
-          result2.push(
-                  //   shared_id: element._id,
-                      element.productName
-                  
-                    )
-                  
-        
-      });
-      return result2;
-      }
- 
-    
-  }
 
   async init_KYC_share(
    
@@ -1482,223 +1717,6 @@ export class TntService /*implements OnModuleInit, OnModuleDestroy*/ {
   }
 
 
-  async update_batch(
-    //authorizationHeader: string,
-    newBatchBody: UpdateBatchDto
-  ): Promise<CheckResult> {
-
-    const {documentId, vp_token,eventDetails, presentation_submission} = newBatchBody;
-   // console.log('update batch->'+JSON.stringify(newBatchBody));
-
-    let licenseVp;
-     // check licensevp
-     try {
-      licenseVp= await this.validateLicenseVP(vp_token, presentation_submission, this.pex)
-     } catch (error) {
-      if (error instanceof Error) {
-        throw new BadRequestError(BadRequestError.defaultTitle, {
-           detail: error.message,
-        });
-      }
-      throw error;
-     }
-
-    // console.log('licenseVP->'+licenseVp);
-
-     if ( typeof licenseVp === 'string') {
-      return {
-        success:false,
-        errors: [licenseVp]
-      }
-
-     }
-
-     //check submitted event details
-
-     const {productName, legalName, allowedEvent, lastInChain,vcJwt,actordid } = licenseVp;
-
-    const product = await this.ProductModel.findOne({productName}).exec() as Product;
-
-   
-    if (!product) {
-      return {
-        success: false,
-        errors:['product does not exist']
-      }
-    }
-
-  
-    const { eventsDetails} = product;
-    // const eventDbDetails = [{type: "halloumi_produced",details: ["production_date","expiry_date","milk_proportions"]}]
-
-     let eventDbDetails:string[]= []
-     eventsDetails.map(detailsEntry => {
-      if (detailsEntry.type == allowedEvent) eventDbDetails = [...detailsEntry.details]
-     })
-
-     if (eventDbDetails.length == 0) {
-      return {
-        success:false,
-        errors: [`no pre-defined event details found in db for ${allowedEvent}`]
-      }
-
-     }
-   
-     const entries:[string, unknown][] = []; // Object.entries(reqEventDetails)
-     eventDbDetails.map(key=> {
-      entries.push([key,'']);
-     })
-
-     const reqEventDetails = Object.fromEntries(entries);
-    
- 
-     console.log('reqDbDetails->'+JSON.stringify(reqEventDetails));
-    
-   
-     console.log('subDetails->'+JSON.stringify(eventDetails));
-     const missingDetails: string[] =[];
-     Object.keys(reqEventDetails).map(key => {
-      if (!eventDetails.hasOwnProperty(key)) {
-        console.log('keys is required->'+key); 
-        missingDetails.push(key)
-      }
-     });
-
-     if (missingDetails.length > 0) {
-      return {
-        success:false,
-        errors: [`following event details are missing: ${missingDetails} `]
-      }
-
-     }
-
-    //console.log('licenseVP->'+JSON.stringify(licenseVp));
-
-
-    //get document and check if 
-    //it has not already event with type == allowedEvent
-    //exists requiredEvents type == allowedEvent and from==actordid
-    //if requiredEvents.lastInChain check if license is lastInChain and all requiredEvents have been submitted
-
-    const {pdodocument,requiredEvents, events} = await this.getDocument(documentId);
-   
-
-   
-    if (!pdodocument) 
-      return {
-          success:false,
-          errors:['error getting tnt document']
-      }
-
-      console.log('pdodoc->'+JSON.stringify(pdodocument));
-
-      if (!requiredEvents.some(reqEvent => reqEvent.type == allowedEvent )) {
-        return {
-          success:false,
-          errors: [`${allowedEvent} event not requested on this batch`]
-        }
-      }
-
-      if (requiredEvents.some(reqEvent => reqEvent.type == allowedEvent && reqEvent.from != actordid)) {
-        return {
-          success:false,
-          errors: [`${allowedEvent} event not requested from this actor`]
-        }
-      }
-
-      const {pdoEvents,success} = await this.getEvents(documentId,events);
-
-      if (!success) 
-        return {
-            success:false,
-            errors:['error getting tnt document events']
-        }
-
-        console.log('pdoevents->'+JSON.stringify(pdoEvents));
-
-        if (lastInChain) {
-          const missingRequiredEvents = this.missingReqEvents(requiredEvents,pdoEvents, allowedEvent);
-          if (missingRequiredEvents.length > 0) {
-            return {
-              success:false,
-              errors: [`the following events must be added first: ${missingRequiredEvents}`]
-            }
-          }
-        }
-
-        if (pdoEvents.some(pdoEvent => pdoEvent.type == allowedEvent)) {
-          return {
-            success:false,
-            errors: [`${allowedEvent} event already added to this batch`]
-          }
-        }
-
-  
-
-   //call TNT
-
-   
-   const authToken = await this.authorisationAuth('tnt_write', "empty", "ES256");
-   console.log('auhtToken->'+authToken);
-
-   if (typeof authToken !== 'string') {
-    return {
-      success:false,
-      errors: ['error from authorization API '+authToken.error]
-    }
-   }
-
-  
-  const wallet = new ethers.Wallet(this.issuerPrivateKeyHex);
-
-   
- const eventMetadata = JSON.stringify(
-  {
-    type: allowedEvent,
-    from: actordid,
-    fromName: legalName,
-    lastInChain,
-    vcJwt,
-    eventDetails,
-  //  eventDetails : {milk_production_date: '051024', milk_type: 'cow', milk_volume:'100 kilos'}
-
-  }
- )
-
-   //console.log('documentMeta->'+documentMetadata);
-
-   const params = [{
-     from: wallet.address,
-     eventParams: {
-     documentHash:documentId,
-     externalHash: "0x29214",
-     sender:`0x${Buffer.from(this.issuerDid).toString("hex")}`,
-     origin:"my origin",
-     metadata:eventMetadata
-     }
-     
-   }]
-
-    return await this.jsonrpcCall("writeEvent",params,authToken);
-
-   // return {success:true}
-
-  }
-
-  missingReqEvents(requiredEvents: RequiredEvent[], pdoEvents: PDOEvent[], lastInChainEvent: String | null) {
-
-    if (requiredEvents.some(reqEvent => reqEvent.type == lastInChainEvent && !reqEvent.lastInChain)) {
-      return ['allowedEvent not the required last in chain event']
-
-    }
-    const missingEvents: string[] = [];
-    requiredEvents.map(reqEvent => {
-      if (!pdoEvents.some(pdoEvent => reqEvent.type == pdoEvent.type)) {
-        if (reqEvent.type != lastInChainEvent) missingEvents.push(reqEvent.type)
-      }
-    })
-    return missingEvents;
-  }
 
 
   async getDocument(hash:string) {
@@ -2758,6 +2776,7 @@ sha256(data: string) {
   return hash.digest().toString("hex");
 }
 
+
   getCredentialIssuerMetadata(): CredentialIssuerMetadata {
     return {
       credential_issuer: this.issuerUri,
@@ -2790,63 +2809,7 @@ sha256(data: string) {
   }
 
 
-  //called from last in chain actor
 
-  async active_actors(ProductName:string): Promise<object> {
-
-    
-    type resElement = {actorDID:string;legalName:string;allowedEvent:string}
-    let result: resElement[] = []
-  
-    const data = await this.IssuedVCModel.aggregate([
-      {
-        $match: {
-          productName: ProductName,
-          lastInChain: {$ne: true},
-          status: "active",
-          //issued:true,
-          // deferred:true,
-          // acceptancetoken: {$exists: true},
-          downloaded: true
-       
-        },
-        
-      },
-      {
-        $sort: {issuedDate: -1}
-      },
-
-      
-    ])
-
-   //console.log(data);
-    //result.metadata = pagevcs[0].metaData[0];
-
-    if (data && data.length > 0)
-
-     {
-      data.map((element: IssuedVC)=> {
-         //skip duplicates
-          if ((result.some(e =>e.actorDID== element.actorDID && e.allowedEvent==element.allowedEvent) ))
-               {
-               // pagevcs[0].metaData[0].total =  pagevcs[0].metaData[0].total -1;
-               } else {
-          result.push({
-                   //   shared_id: element._id,
-                  //    issuedDate: element.issuedDate,
-                      actorDID: element.actorDID,
-                      legalName: element.legalName,
-                      allowedEvent: element.allowedEvent,
-                   //   lastInChain: element.lastInChain,
-                   //   status: element.status,
-                    })
-                  };
-        
-      });
-    }
-    return result;
-    
-  }
   
 
 
@@ -2953,214 +2916,6 @@ sha256(data: string) {
 
 
 
-  async validateLicenseVP(vpJwt:string, unsafePresentationSubmission:string, pex: PEXv2) {
-
-
-    
-    const invalidRequest = (description: string, error?: unknown) => {
-      return this.formatAuthErrorResponse(
-        'openid://',//requestPayload.redirect_uri,
-        undefined,
-        "invalid_request",
-        description,
-        error
-      );
-    };
-
-    let presentationDefinition: ReadonlyDeep<PresentationDefinition> | null =
-    null;
- 
-    presentationDefinition = PRESENTATION_DEFINITION_TEMPLATE;
-  
-
-
-    // const unsafePresentationSubmission = JSON.parse(
-    //   presentationSubmissionString
-    // );
-
-    const parsedPresentationSubmission = presentationSubmissionSchema.safeParse(
-      unsafePresentationSubmission
-    );
-
-    if (!parsedPresentationSubmission.success) {
-      const error = new Error(
-        parsedPresentationSubmission.error.issues
-          .map((issue) => `'${issue.path.join(".")}': ${issue.message}`)
-          .join("\n")
-      );
-
-      return invalidRequest("invalid_request", error);
-    }
-
-    let vpTokenPayload: JWTPayload;
-    let vpTokenHeader: ProtectedHeaderParameters;
-    try {
-      vpTokenPayload = decodeJwt(vpJwt);
-      vpTokenHeader = decodeProtectedHeader(vpJwt);
-    } catch (error) {
-      return invalidRequest("Invalid Verifiable Presentation", error);
-    }
-
-    const { kid } = vpTokenHeader;
-    if (!kid) {
-      return invalidRequest("Invalid vp_token: No kid defined");
-    }
-    const did = kid.split("#")[0] as string;
-
-    // prevent replay attack
-    if (!vpTokenPayload["nonce"]) {
-      return invalidRequest(
-        "The vp_token must contain a nonce in order to prevent replay attacks."
-      );
-    }
-
-    const nonceVpToken = vpTokenPayload["nonce"] as string;
-    try {
-    
-      const vpnonce = await this.cacheManager.get(nonceVpToken);
-      console.log("vpnonce exists->"+vpnonce);
-      // it exists
-      if (vpnonce != undefined)
-        return invalidRequest(
-          "The vp_token contains a nonce which has already been used."
-        )
-    } catch (e) {
-      // empty
-    }
-
-    // const dbKey1 = { did: serverDid, nonceVpToken };
-    // await db.put(dbKey1, { nonce: nonceVpToken });
-    // addKeyToCacheManager(dbKey1, 300_000); // 5 minutes
-
-    await this.cacheManager.set(nonceVpToken, { nonce: nonceVpToken },5_000 );
-
-    // Verify presentation_submission object
-    const presentationSubmission = parsedPresentationSubmission.data;
-    try {
-      this.validatePresentationSubmissionObject(
-        presentationSubmission,
-        presentationDefinition
-      );
-    } catch (error) {
-      return invalidRequest("Invalid Presentation Submission", error);
-    }
-
-    // Now, we can assert that vpTokenPayload is a VpJwtPayload
-    const { vp } = vpTokenPayload as VpJwtPayload;
-
-    // Fix: EBSIINT-6065
-    // The PEX library is not forcing that all inputs listed in the
-    // input_descriptors array are required for submission. This means that
-    // if vp.verifiableCredential is an empty array the input_descriptors are
-    // skipped.
-    // To fix this we enforce that the didr_invite and tir_invite scopes
-    // must have at least one VC, so the PEX library is able to validate the
-    // corresponding credentials.
-    if (!vp.verifiableCredential || vp.verifiableCredential.length === 0) {
-      return invalidRequest(
-        "Invalid Verifiable Presentation: The presentation must contain at least 1 verifiable credential"
-      );
-    }
-
-    // Verify presentation exchange
-    try {
-      this.validatePresentationExchange(
-        pex,
-        vp,
-        presentationDefinition,
-        presentationSubmission
-      );
-    } catch (error) {
-      return invalidRequest("Invalid Presentation Exchange", error);
-    }
-
-    // Verify VP JWT
-    try {
-      const audience = this.serverUrl;
-      const options: VerifyPresentationJwtOptions = {
-       ebsiAuthority:this.ebsiAuthority,
-     // ...this.ebsiEnvConfig,
-        ebsiEnvConfig: {
-          didRegistry:this.didRegistryApiUrl,
-          trustedIssuersRegistry:this.trustedIssuersRegistryApiUrl,
-          trustedPoliciesRegistry:this.trustedPoliciesRegistryApiUrl
-        },
-        timeout: this.timeout,
-        skipAccreditationsValidation: true,
-        skipStatusValidation:true,  //always true if using my own routine
-        skipCredentialSubjectValidation: false,
-        validAt: Math.floor(Date.now() / 1000), // The JWT VC(s) must be valid now
-        skipSignatureValidation: false,  //YC correct this. also check issuer module
-        // OPTIONAL. Determines whether or not to validate the issuer's accreditations when
-        // `termsOfUse` is missing. Default: false
-        // used by validateAccreditations of vcs and only when skipAccreditationsValidation = false
-        //if skipAccreditationsValidation = false && validateAccreditationWithoutTermsOfUse = true
-        //it checks if verifiableAuthorizsationForTrustChain
-        validateAccreditationWithoutTermsOfUse: false, // The VC must contain terms of use (or be self-accredited)
-      }
-
-      console.log('skipAccreditation->'+options.skipAccreditationsValidation);
-      console.log('skipStatusVal->'+options.skipStatusValidation);
-      console.log('sckipCredentialSubVal->'+options.skipCredentialSubjectValidation);
-
-      //only skipSignatureValidation applies to vp. all others to included VCs
-    
-      const vp = await verifyPresentationJwt(vpJwt, audience, options);
-      //need to call this within lib for each vc in vp
-    
-     console.log("calling my ValidateStatusLocal after verifyPresentation");
-     await Promise.all(
-       vp.verifiableCredential.map(async (vcJwt) => {
-         if (typeof vcJwt === 'string' ) {
-           const vcJwtPayload = decodeJwt(vcJwt) as VcJwtPayload;
-           const { vc: credentialPayload } = vcJwtPayload;
-           await validateCredentialStatusLocal(credentialPayload as EbsiVerifiableAttestation202401,this.IssuedVCModel);
-           return;
-          }
-          throw new ValidationError("Unsupported verifiableCredential type");
-       },
-     ));
-
-    } catch (error) {
-      return invalidRequest("VP Verification Error", error);
-    }
-
-  
-
-   
-
-    if (vp && vp.verifiableCredential  && vp.verifiableCredential[0] ) {
-        const VPPayload = decodeJwt(vp.verifiableCredential[0] as string) ;
-        const VPvc = VPPayload['vc'] as EbsiVerifiableAttestation;
-        const type = VPvc.type[2];
-        const actordid = VPvc.credentialSubject.id;
-        const legalName = VPvc.credentialSubject['legalName'] ? VPvc.credentialSubject['legalName'] as string : null;
-        const productName = VPvc.credentialSubject['productName'] ? VPvc.credentialSubject['productName'] as string : null;
-        const allowedEvent = VPvc.credentialSubject['allowedEvent'] ? VPvc.credentialSubject['allowedEvent'] as string : null;
-        const lastInChainString = VPvc.credentialSubject['lastInChain'] ? VPvc.credentialSubject['lastInChain'] : null;
-        const lastInChain = lastInChainString ? ( lastInChainString == 'true' ? true : false) : null;
-            
-        if (type !== 'VerifiableAuthorisationToOnboard') {
-          return invalidRequest("VC type should be VerifiableAuthorisationToOnboard");
-        }
-
-        return {
-          legalName,
-          productName,
-          allowedEvent,
-          lastInChain,
-          vcJwt: vp.verifiableCredential[0] as string,
-          actordid 
-        }
-    
-     }
-
-
-     return invalidRequest("VP Verification. someething went wrong");
-
- 
-
-  }
 
 
 validatePresentationSubmissionObject(

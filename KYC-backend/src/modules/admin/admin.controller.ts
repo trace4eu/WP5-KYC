@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Headers, HttpCode, Param, Patch, Post, Query, Req } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Header, Headers, HttpCode, Param, Patch, Post, Query, Req } from "@nestjs/common";
 import type { CheckResult, NewPinResult } from "../../shared/interfaces.js";
 import { AdminService } from "./admin.service.js";
 import paginateDto, { paginateActorsDto, ProductsDto } from "./dto/paginate.dto.js";
@@ -11,6 +11,7 @@ import NewProductDto from "./dto/newproduct.dto.js";
 import EventDetailsDto from "./dto/eventdetails.dto.js";
 import { walletdidDto } from "../tnt/dto/walletdid.dto.js";
 import ReqOnBoardDto from "./dto/reqonboard.dto.js";
+import { MockDecryptDto } from "./dto/decrypt.dto.js";
 
 
 const { sign } = pkg;
@@ -49,6 +50,15 @@ export class AdminController {
       return await this.adminService.reqOnBoard(reqonboardDto);
     }
 
+    //called from bank admin to decrypt a doc in off-chain. mock version
+    @HttpCode(200)
+    @Get("/mock_decrypt_docs")
+  
+    async mockDecryptDocs(
+      @Query() mockDecryptDto:MockDecryptDto
+    ): Promise<CheckResult|Buffer> {
+      return await this.adminService.mockDecryptDocs(mockDecryptDto);
+    }
 
  
 

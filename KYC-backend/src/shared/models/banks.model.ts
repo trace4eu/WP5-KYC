@@ -10,7 +10,7 @@ export class Bank {
 
   
   @Prop({required: true})
-  authpin!: string;
+  pin!: string;
 
   @Prop({required: true})
   bankDID!: string;

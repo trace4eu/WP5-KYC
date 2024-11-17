@@ -1,7 +1,7 @@
 import React, { useState } from "react"
 import axios, { AxiosError } from 'axios'
 import fs from 'fs'
-import { decryptEncryptionKey, encryptEncryptionKey, generateEncKey, } from "./encryptPublic";
+import { cryptoKeyToHexString, decryptEncryptionKey, encryptEncryptionKey, generateEncKey, } from "./encryptPublic";
 import { getBankJwk, getDID_ES256,getDID_ES256K, getKeysPairJwk_ES256, getKeysPairJwk_ES256_Encryption, getKeysPairJwk_ES256K, getPublicKeyJWK_fromDID } from "./keysUtil";
 // import { getResolver  } from "@cef-ebsi/ebsi-did-resolver";
 import { Resolver } from "did-resolver";
@@ -36,6 +36,31 @@ const resolverConfig = {
 const ebsiResolver = new Resolver(getEbsiDidResolver(resolverConfig));
 const didkeyResolver = new Resolver(getKeyDidResolver());
 
+export function removePrefix0x(key: string): string {
+  if (key=='error')
+    return 'error';
+  return key.startsWith("0x") ? key.slice(2) : key;
+}
+
+export function fromHexString(hexString: string): Buffer {
+  return Buffer.from(removePrefix0x(hexString), "hex");
+}
+
+export function toHexString(bytes: Uint8Array): string {
+  return bytes.reduce(
+    (str, byte) => str + byte.toString(16).padStart(2, "0"),
+    "",
+  );
+}
+
+function toArrayBuffer(myBuf:Buffer) {
+  var myBuffer = new ArrayBuffer(myBuf.length);
+  var res = new Uint8Array(myBuffer);
+  for (var i = 0; i < myBuf.length; ++i) {
+     res[i] = myBuf[i];
+  }
+  return myBuffer;
+}
   //ES256 wallet encryption keys. different from ES256 wallet keys. do not depend on privateHex or did
   //works
   // const privateKeykWallet= {
@@ -130,6 +155,7 @@ function App() {
         } catch (err) {
             console.log('axios error->'+err);
         }
+        
     }
     
   }
@@ -213,8 +239,9 @@ const download2 = async () => {
             enckey,
             cipher,
           );
-          console.log('decryption completed');
-        //   console.log('decrypted->'+cleartext.byteLength);
+          console.log('downloaded decrypted doc from mock');
+        console.log('decrypted->'+cleartext.byteLength);
+        console.log('decrypted->'+cleartext);
         const a = document.createElement('a');
         a.download = 'my-file.pdf';
         // const raw = new Uint8Array(result.data.length); 
@@ -228,16 +255,21 @@ const download2 = async () => {
         console.log('decryption error->'+err);
       }
     }  
+  } else {
+    console.log('no file selected');
   }
 }
+
+let clearEncKey:  CryptoKey;
+let fileName: string;
   
   const upload = async () => {
 
    
     console.log('file to upload->'+file?.name);
     const algorithm = "aes-256-gcm";
-    const key = await generateKey();
-    console.log('key->'+key);
+    clearEncKey = await generateKey();
+    console.log('clearEnckey->'+clearEncKey);
    //const key = scryptSync("12345678", 'salt', 32);//crypto.randomBytes(32);
   //  const key = crypto.randomBytes(32);
   //  const iv = scryptSync("KYC-encryption", 'salt', 16);;//crypto.randomBytes(16);
@@ -266,19 +298,27 @@ const download2 = async () => {
             //  additionalData: aad,
               length: 256,
             },
-            key,
+            clearEncKey,
             fileBuffer
           );
      //   let encrypted = cipher.update(fileBuffer);
       // encrypted = cipher.final();
         blob= new Blob([ciphertext], { type: 'application/octet-stream' })
+       // formData.append('file',  blob, file.name+".enc");
+        formData.append('vp_token',  'vptoken');
         formData.append('file',  blob, file.name+".enc");
         try {
-        const result=await axios.post('http://localhost:3000/upload',formData )
+          const config = {     
+            headers: { 'content-type': 'multipart/form-data' }
+        }
+        const result=await axios.post('http://localhost:3000/upload',formData, config )
         console.log('off-chain FileName->'+result.data.path);
+        fileName = result.data.path;
         } catch (err) {
             console.log('axios error->'+err);
         }
+
+        
     }
     
   }
@@ -333,14 +373,15 @@ const download2 = async () => {
 //   }
 // }
 
-  let encryptedEncKey:string;
+  let encryptedEncHexKey:string;
 
   const encryptKey = async ()=> {
 
     //we are in web wallet
     const bankDID = "did:ebsi:zg4w51ujVxcVbok59meAUhK"
-    const clearEncKey = await generateEncKey();
-    //save clearEncKey in local storage
+     const clearEncKeyHexString = await cryptoKeyToHexString(clearEncKey);
+     console.log('clearEncKeyHexString->'+clearEncKeyHexString);
+    //save clearEncKeyString in local storage
     //use it to encrypt KYC docs before sending them to off-chain storage
     //create encryptedEncKey for a bank using bank's public key
     const privateKeyJwkWallet = getKeysPairJwk_ES256(walletprivateKeyHex).privateKeyJWK_ES256;
@@ -353,12 +394,12 @@ const download2 = async () => {
       console.log('could not get bank publickey from its jwks api');
       return;
      }
-    encryptedEncKey= await encryptEncryptionKey(
-      clearEncKey, 
+    encryptedEncHexKey= await encryptEncryptionKey(
+      clearEncKeyHexString, 
       publicKeyJwkBank, 
       privateKeyJwkWallet);
 
-    //send encryptedEncKey with the KYC_docs_shared event
+    //send encryptedEncHexKey with the KYC_docs_shared event
 
   } 
 
@@ -378,7 +419,7 @@ const download2 = async () => {
 
     //bank gets encryptedEncKey from event and decrypts it using its private key
     const decryptionKey = await decryptEncryptionKey(
-      encryptedEncKey,
+      encryptedEncHexKey,
       publicKeyJwkWallet,
       privateKeyJwkBankP256
     );
@@ -418,6 +459,44 @@ const download2 = async () => {
 
   }
 
+  const mockdecrypt = async () => {
+
+    //choose file option, and upload option 
+  
+    //call mockdecrypt
+
+    try {
+    //   const config = {     
+    //     headers: { 'content-type': 'multipart/form-data' }
+    // }
+    await encryptKey();
+    console.log('to send encEncKey->'+encryptedEncHexKey);
+    const {privateKeyJWK_ES256, publicKeyJWK_ES256} = getKeysPairJwk_ES256(walletprivateKeyHex);
+    const didES256 = getDID_ES256(publicKeyJWK_ES256);
+    const cleartextArrayBuffer=await axios.post(`http://localhost:7002/v3/tnt/mock_decrypt_docs`,
+      { 
+        offchainFile:fileName,
+        encEncKey:encryptedEncHexKey,
+        walletDID:didES256,
+       
+      },
+      {responseType: "arraybuffer"}
+      
+     )
+   //console.log('mockdecrypt->'+cleartextArrayBuffer.data);
+   const a = document.createElement('a');
+   a.download = 'my-file.pdf';
+   // const raw = new Uint8Array(result.data.length); 
+   // for (let i = 0; i < result.data.length; i++) 
+   //     { raw[i] = result.data[i].charCodeAt(0); }
+   const blob = new Blob([cleartextArrayBuffer.data],  {type : 'application/pdf'} );
+   a.href = URL.createObjectURL(blob);
+   a.click();
+
+    } catch (err) {
+        console.log('axios error->'+err);
+    }
+  }
 
 
    return (
@@ -446,6 +525,11 @@ const download2 = async () => {
 
         <div>
         <button type="button" onClick={decryptKey}>Decrypt Encryption key</button>
+        </div>
+
+        <div>
+     
+          <button type="button" onClick={mockdecrypt}>mock decrypt</button>
         </div>
         
     </>

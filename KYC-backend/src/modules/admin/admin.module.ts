@@ -21,9 +21,7 @@ import { Bank, BanksSchema } from "../../shared/models/banks.model.js";
     DataStoreModule,
     TnTModule,
     MongooseModule.forFeature([
-      
-      { name: IssuedVC.name, schema: IssuedVCSchema },
-      { name: SharedVC.name, schema: SharedVCSchema },
+    
       { name: Product.name, schema: ProductSchema },
       { name: Bank.name, schema: BanksSchema },
      

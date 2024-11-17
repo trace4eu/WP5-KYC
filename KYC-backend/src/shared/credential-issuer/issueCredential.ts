@@ -9,9 +9,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import type { JWKWithKid } from "../utils/index.js";
 import type { CredentialRequest, AccessTokenPayload } from "./validators/index.js";
 import { BadRequestException } from "@nestjs/common";
-import { AuthPINDocument } from "../models/authpins.model.js";
-import { Model } from "mongoose";
-import { IssuedVC } from "../models/issuedvcs.model.js";
+
 
 export async function issueCredential(
   serverDid: string,
@@ -23,9 +21,7 @@ export async function issueCredential(
   createVerifiableCredentialOptions: CreateVerifiableCredentialOptions,
  // additionalVcPayload: Partial<EbsiVerifiableAttestation>,
   credentialRequest: CredentialRequest,
-  //accessTokenPayload: AccessTokenPayload,
-  //authPINModel : Model<AuthPINDocument>,
- // vcdatareq: IssuedVC,
+  
   bankDID: string,
 ): Promise<{
   //reservedAttributeId: string;

@@ -29,7 +29,6 @@ import { InjectModel } from "@nestjs/mongoose";
 //import { ReceivedVC, ReceivedVCDocument } from "../../shared/models/receivedvcs.model.js";
 import type { Model } from "mongoose";
 
-import { IssuedVC, IssuedVCDocument } from "../../shared/models/issuedvcs.model.js";
 import { Bank, BanksDocument } from "../../shared/models/banks.model.js";
 
 @Injectable()

@@ -30,10 +30,7 @@ export const cacheConfig: CacheManagerOptions = {
     // LogsModule,
    
     MongooseModule.forFeature([
-     
-      { name: IssuedVC.name, schema: IssuedVCSchema },
-      { name: RevList.name, schema: RevListSchema},
-      { name: Product.name, schema: ProductSchema},
+   
       { name: Bank.name, schema: BanksSchema},
    
     ]),

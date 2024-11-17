@@ -86,7 +86,6 @@ import type { Cache } from "cache-manager";
 //import type { ReceivedVC, ReceivedVCDocument } from "../models/receivedvcs.model.js";
 import type { Model } from "mongoose";
 
-import { IssuedVC, IssuedVCDocument } from "../models/issuedvcs.model.js";
 import { Bank, BanksDocument } from "../models/banks.model.js";
 
 /**
@@ -1639,7 +1638,7 @@ async function preAuthorizedCodeToken(
   const clientId = preAuthorizedCodePayload["client_id"];
   console.log('submitted bankid->'+clientId);
   
-  const bank = await bankModel.findOne({authpin:userPin, bankDID:clientId}).exec() as Bank;
+  const bank = await bankModel.findOne({pin:userPin, bankDID:clientId}).exec() as Bank;
   if (!bank) {
     throw new OAuth2TokenError("invalid_request", {
       errorDescription: "Invalid or expired PIN or wrong bank DID",
