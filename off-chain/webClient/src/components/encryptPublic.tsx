@@ -1,5 +1,7 @@
-import { JWK } from "jose";
+//import { JWK } from "node-jose";
+//import { JWK } from "jose";
 import { fromHexString, toHexString } from "./app";
+import { JWK } from "./verifiablePresentation";
 
 window.Buffer = window.Buffer || require('buffer').Buffer;
 

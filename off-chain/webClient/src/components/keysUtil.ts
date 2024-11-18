@@ -1,13 +1,16 @@
 import { ethers } from "ethers";
 import { EbsiWallet } from "@cef-ebsi/wallet-lib";
-import { exportJWK, type JWK, type KeyLike, generateKeyPair } from "jose";
+//import { exportJWK,  type KeyLike, generateKeyPair } from "jose";
 import elliptic from "elliptic";
 import { base64url } from "multiformats/bases/base64";
-import { Resolver } from "did-resolver";
+import {util} from '@cef-ebsi/key-did-resolver';
+import { Resolver, JsonWebKey } from "did-resolver";
 import { validate as validateEbsiDid } from "@cef-ebsi/ebsi-did-resolver";
-import { util as keyDidMethodHelpers } from "@cef-ebsi/key-did-resolver";
+import { util as keyDidMethodHelpers,  } from "@cef-ebsi/key-did-resolver";
 import axios, { AxiosResponse } from "axios";
 import { z } from "zod";
+//import {JsonWebKey as JWK} from "crypto"
+import { JWK } from "./verifiablePresentation";
 
 const EC = elliptic.ec;
 
@@ -34,7 +37,7 @@ export function prefixWith0x(key: string): string {
 
     const publicKeyJWK_ES256K = new EbsiWallet(ethWallet.privateKey).getPublicKey({
       format: "jwk",
-    }) as JWK;
+    }) as JsonWebKey;
     const d = Buffer.from(removePrefix0x(privateKeyHex), "hex")
       .toString("base64")
       .replace(/\+/g, "-")
@@ -67,33 +70,37 @@ export function prefixWith0x(key: string): string {
 
   //encryption keys for ES256K are the same
 
-  export async function getKeysPairJwk_ES256_Encryption() {
+//   export async function getKeysPairJwk_ES256_Encryption() {
 
-    let keys: {
-        publicKey: KeyLike 
-        privateKey: KeyLike 
-      };
+//     let keys: {
+//         publicKey: KeyLike 
+//         privateKey: KeyLike 
+//       };
 
-    keys = await generateKeyPair('ES256',{extractable:true});
+//     keys = await generateKeyPair('ES256',{extractable:true});
 
-    const publicKeyJWK_ES256_Encryption= await exportJWK(keys.publicKey);
-    const privateKeyJWK_ES256_Encryption= await exportJWK(keys.privateKey);
+//     const publicKeyJWK_ES256_Encryption= await exportJWK(keys.publicKey);
+//     const privateKeyJWK_ES256_Encryption= await exportJWK(keys.privateKey);
 
-    return {
-        publicKeyJWK_ES256_Encryption,
-        privateKeyJWK_ES256_Encryption
-    }
+//     return {
+//         publicKeyJWK_ES256_Encryption,
+//         privateKeyJWK_ES256_Encryption
+//     }
+//  }
+
+ export function getDID_ES256(publicKeyJWK_ES256: JsonWebKey) {
+ 
+   return util.createDid(publicKeyJWK_ES256 )
+  
+  
+  //return EbsiWallet.createDid("NATURAL_PERSON",publicKeyJWK_ES256 );
+
  }
 
- export function getDID_ES256(publicKeyJWK_ES256: JWK) {
+ export function getDID_ES256K(publicKeyJWK_ES256K: JsonWebKey) {
 
-  return EbsiWallet.createDid("NATURAL_PERSON",publicKeyJWK_ES256);
-
- }
-
- export function getDID_ES256K(publicKeyJWK_ES256K: JWK) {
-
-    return EbsiWallet.createDid("NATURAL_PERSON",publicKeyJWK_ES256K);
+    return util.createDid(publicKeyJWK_ES256K);
+   // return EbsiWallet.createDid("NATURAL_PERSON",publicKeyJWK_ES256K);
   
    }
 
@@ -102,7 +109,7 @@ export function prefixWith0x(key: string): string {
     did: string, //did:key or did:ebsi. did:ebsi is not used as we don't know the kid in DIDdodument
     didKeyResolver: Resolver, 
     didEbsiResolver: Resolver
-   ): Promise<JWK | null> {
+   ): Promise<JsonWebKey | null> {
 
     let resolver: Resolver;  
     let kid: string;

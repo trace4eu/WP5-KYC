@@ -115,7 +115,7 @@ import NewBatchDto, { InitKYCShareDto } from "./dto/initKYCshare.dto.js";
 import { Product, ProductDocument } from "../../shared/models/products.model.js";
 import axios, { AxiosError, AxiosResponse } from "axios";
 import { logAxiosRequestError, signAndSendTransaction, waitToBeMined } from "../../shared/credential-issuer/utils.js";
-import { Alg, BatchAll, CompletedBatch, CompletedTask, PaginatedList, PDOdocument, PDOEvent, PendingBatch, PendingBatchAll, PendingTask, RequiredEvent, TnTDocument, TnTEvent, UnknownObject, UnsignedTransaction } from "./interfaces/index.js";
+import { Alg, BatchAll, CompletedBatch, CompletedTask, KYC_SHARED, KYCEvent, PaginatedList, PDOdocument, PDOEvent, PendingBatch, PendingBatchAll, PendingTask, RequiredEvent, TnTDocument, TnTEvent, UnknownObject, UnsignedTransaction } from "./interfaces/index.js";
 import { fromHexString, multibaseEncode, removePrefix0x } from "./utils/utils.js";
 import createVPJwt from "./utils/verifiablePresentation.js";
 import Client from "./utils/Client.js";
@@ -128,7 +128,7 @@ import { Bank, BanksDocument } from "../../shared/models/banks.model.js";
 import qs from "qs";
 import { OPMetadata, TokenResponse } from "../../shared/auth-server/interfaces.js";
 import { PostTokenPreAuthorizedCodeDto } from "src/shared/auth-server/index.js";
-import { MockDecryptDto } from "../admin/dto/decrypt.dto.js";
+import DecryptDto, { MockDecryptDto } from "../admin/dto/decrypt.dto.js";
 import { getPublicKeyJWK_fromDID } from "./utils/didresolver.js";
 import { getResolver as getEbsiDidResolver } from "@cef-ebsi/ebsi-did-resolver";
 import { getResolver as getKeyDidResolver } from "@cef-ebsi/key-did-resolver";
@@ -699,13 +699,6 @@ return result;
    
   }
 
-  // stringToArrayBuffer(str: string) {
-  //   const arr = new Uint8Array(str.length / 8);
-  //   for(let i = 0; i<str.length; i+=8) {
-  //     arr[i/8] = parseInt(str.slice(i, i+8), 2);
-  //   }
-  //   return arr;
-  // }
 
   async adminMockDecryptDocs(mockDecryptDto: MockDecryptDto): Promise<CheckResult|Buffer> {
 
@@ -771,6 +764,192 @@ return result;
     
     //changed from axios.get
      encryptedDoc = await fetch(`http://localhost:3000/download?file=${offchainFile}`);
+     //console.log('encypted doc data length->'+encryptedDoc.length);
+     
+   } catch (e) {
+    console.log('error doesnling file ');
+    return {
+      success: false,
+      errors: [
+        `error downloading encrypted doc ${e}`
+      ],
+    };
+   }
+
+   if (encryptedDoc && !encryptedDoc.ok) {
+    console.log('fetch error->'+JSON.stringify(await encryptedDoc.json()));
+    return {
+      success: false,
+      errors: [
+        `error downloading encrypted doc`
+      ],
+    };
+   }
+
+   if (encryptedDoc && encryptedDoc.ok ) {
+      
+    console.log('starting decryption');
+    const dataBuffer = await encryptedDoc.arrayBuffer();
+    //const dataBuffer = await encryptedDoc.data.arrayBuffer();
+   // const dataBuffer = this.stringToArrayBuffer(encryptedDoc.data);
+  //  console.log('encypted doc data length->'+dataBuffer.length);
+    let cleartext: ArrayBuffer;
+    const iv = Buffer.from("KYC-encryption");
+    const cipher = Buffer.from(dataBuffer);
+    try {
+     cleartext = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv },
+        docsDecryptionKey,
+        cipher,
+      );
+      console.log('decryption completed');
+    //   console.log('decrypted->'+cleartext.byteLength);
+    } catch (e) {
+
+      return {
+        success: false,
+        errors: [ 
+          `could not decrypt KYC doc ${e}`
+        ],
+      };
+    }
+    if (cleartext) {
+    const clearDataBuffer = Buffer.from(cleartext);
+   // const clearText = clearDataBuffer.toString('binary');
+   //console.log('clearTExt->'+clearDataBuffer);
+    return clearDataBuffer;
+
+    }
+    
+   }
+
+   return {
+    success: false,
+    errors: [
+      `something went wrong`
+    ],
+   }
+    
+  }
+  
+  
+
+  async adminDecryptDocs(decryptDto: DecryptDto): Promise<CheckResult|Buffer> {
+
+    const {documentId, eventId} = decryptDto;
+
+    const {sender, kycEvent, success} = await this.getEvent(documentId, eventId);
+
+    //event sender is the wallet es256k did
+    //encryption was perfromed with es256 wallet private key. -> Need wallet es256 public key for decryption
+
+    if (!sender || !success) {
+      return {
+        success: false,
+        errors: [
+          'could not get event data'
+        ],
+      };
+    }
+
+    if (kycEvent.eventType != "KYC_docs_shared") {
+
+      return {
+        success: false,
+        errors: [
+          `invalid event type -> ${kycEvent.eventType}`
+        ],
+      };
+    }
+
+    //decrypt encrypted encryption key
+
+    const kycSharedEvent = kycEvent as KYC_SHARED;
+
+    if (!kycSharedEvent.encryptedEncryptionKey) {
+      return {
+        success: false,
+        errors: [
+          `encr encr key is missing from event`
+        ],
+      };
+    }
+
+    if (!kycSharedEvent.offchainFilepath) {
+      return {
+        success: false,
+        errors: [
+          `offchain file path is missing from event`
+        ],
+      };
+    }
+
+    if (!kycSharedEvent.es256Did) {
+      return {
+        success: false,
+        errors: [
+          `es256 did is missing from event`
+        ],
+      };
+    }
+    const publicKeyJwkWallet = await getPublicKeyJWK_fromDID(kycSharedEvent.es256Did,this.didkeyResolver,this.ebsiResolver);
+
+    if (!publicKeyJwkWallet) {
+      console.log('could not get publickey from did');
+      return {
+        success: false,
+        errors: [
+          'could not get publickey from did'
+        ],
+      };
+    }
+
+    console.log('public wallet->'+JSON.stringify(publicKeyJwkWallet));
+
+    let decryptionKey;
+    const {privateKeyJwk} = await this.getIssuerKeyPair("ES256");
+    if (privateKeyJwk) {
+      
+      decryptionKey = await this.decryptEncryptionKey(
+        kycSharedEvent.encryptedEncryptionKey,
+        publicKeyJwkWallet,
+        privateKeyJwk
+      )
+    } else {
+      console.log('no issuer key pair');
+    }
+    console.log('decryption Key->'+decryptionKey);
+
+    //use decryptionKey to decrypt the encrypted docs in off-chain
+    //import key first
+    let docsDecryptionKey;
+
+    if (decryptionKey) {
+        docsDecryptionKey = await crypto.subtle.importKey(
+          "raw",
+          decryptionKey,
+      
+          "AES-GCM",
+          true,
+          ["decrypt"]
+        );
+    } else {
+
+      return {
+        success: false,
+        errors: [
+          'could not get decryption key'
+        ],
+      };
+    }
+
+    //get encrypted doc from off-chain
+
+  let encryptedDoc;
+   try {
+    
+    //changed from axios.get
+     encryptedDoc = await fetch(`http://localhost:3000/download?file=${kycSharedEvent.offchainFilepath}`);
      //console.log('encypted doc data length->'+encryptedDoc.length);
      
    } catch (e) {
@@ -1766,6 +1945,41 @@ console.log('decrypted key buffer->'+decryptedEncKey);
     } 
   
    
+
+  }
+
+  async getEvent(hash:string, eventId: string) {
+
+    const docUrl = 'https://api-pilot.ebsi.eu/track-and-trace/v1/documents'
+
+    //let kycEvent: KYCEvent ={} ;
+    let success:boolean = true;
+
+
+
+        try {
+          const response = await axios.get(
+            `${docUrl}/${hash}/events/${eventId}`,
+            
+          )
+          console.log('event->'+response.data);
+          const tntEvent = response.data as TnTEvent;
+          const kycEvent = JSON.parse(tntEvent.metadata) as KYCEvent;
+          return {sender: tntEvent.sender, kycEvent, success}
+          //kycEvent.createdAt = tntEvent.timestamp.datetime;
+         // pdoEvents.push(pdoEvent)
+          
+      
+          } catch (error) {
+           // console.log('getdocument error->'+error);
+            success = false;
+          // return {pdoEvents: []}
+          } 
+        
+      
+   
+
+    return { success}
 
   }
 

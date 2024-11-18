@@ -2,16 +2,20 @@ import React, { useState } from "react"
 import axios, { AxiosError } from 'axios'
 import fs from 'fs'
 import { cryptoKeyToHexString, decryptEncryptionKey, encryptEncryptionKey, generateEncKey, } from "./encryptPublic";
-import { getBankJwk, getDID_ES256,getDID_ES256K, getKeysPairJwk_ES256, getKeysPairJwk_ES256_Encryption, getKeysPairJwk_ES256K, getPublicKeyJWK_fromDID } from "./keysUtil";
+import { getBankJwk, getDID_ES256,getDID_ES256K, getKeysPairJwk_ES256, getKeysPairJwk_ES256K, getPublicKeyJWK_fromDID } from "./keysUtil";
 // import { getResolver  } from "@cef-ebsi/ebsi-did-resolver";
 import { Resolver } from "did-resolver";
 import { getResolver as getEbsiDidResolver } from "@cef-ebsi/ebsi-did-resolver";
 import { getResolver as getKeyDidResolver } from "@cef-ebsi/key-did-resolver";
+import { addeventTnT, Hash, } from "./tntUtil";
+import { ethers } from "ethers";
+
+
 
 window.Buffer = window.Buffer || require('buffer').Buffer;
 
 
-const walletprivateKeyHex = "0x48bf9c1b9624f06795ae4f4111e4d3595ffe3205ea37869327e772bfbf78ca4e"
+export const walletprivateKeyHex = "0x48bf9c1b9624f06795ae4f4111e4d3595ffe3205ea37869327e772bfbf78ca4e"
 
 const privateKeyJwkBankP256= {
   kty: "EC",
@@ -53,14 +57,7 @@ export function toHexString(bytes: Uint8Array): string {
   );
 }
 
-function toArrayBuffer(myBuf:Buffer) {
-  var myBuffer = new ArrayBuffer(myBuf.length);
-  var res = new Uint8Array(myBuffer);
-  for (var i = 0; i < myBuf.length; ++i) {
-     res[i] = myBuf[i];
-  }
-  return myBuffer;
-}
+
   //ES256 wallet encryption keys. different from ES256 wallet keys. do not depend on privateHex or did
   //works
   // const privateKeykWallet= {
@@ -101,7 +98,7 @@ function toArrayBuffer(myBuf:Buffer) {
   // }
 
 let enckey: CryptoKey;
-let encKey: string;
+
  async function generateKey(): Promise<CryptoKey> {
 
     const key = await window.crypto.subtle.generateKey(
@@ -114,19 +111,7 @@ let encKey: string;
         ["encrypt", "decrypt"],
       );
     
-    //const privateKey = new Uint8Array(Buffer.from(password));
-    // const privateKey = crypto.subtle.generateKey()
-
-    // //console.log('privkay->'+privateKey.toString());
-    // const key = await crypto.subtle.importKey(
-    //   'raw',
-    //   privateKey,
-    //   {
-    //     name: 'AES-GCM',
-    //   },
-    //   true,
-    //   ['encrypt', 'decrypt']
-    // );
+ 
     enckey = key;
     return key;
   }
@@ -137,79 +122,9 @@ function App() {
   const [file, setFile] = useState<File>()
   const [downloadfile, setDownloadFile] = useState<string>()
 
-  const upload1 = async () => {
-
-   
-    console.log('file to upload->'+file?.name);
-  
-    
-    const formData = new FormData()
  
-    const blob = file ? new Blob([file], { type: 'application/octet-stream' }) : null;
-    if (blob && file) {
-       
-        formData.append('file',  blob, file.name );
-        try {
-        const result=await axios.post('http://localhost:3000/upload',formData )
-        console.log('off-chain FileName->'+result.data.path);
-        } catch (err) {
-            console.log('axios error->'+err);
-        }
-        
-    }
-    
-  }
-
-//   const download1 = async () => {
-//     let encdata;
-//     if (downloadfile) {
-//       let result;
-//       try {
-//       result=await axios.get(`http://localhost:3000/download?file=${downloadfile}`,
-   
-//        );
-       
- 
-    
-//       console.log('length of downloaded file->'+result.data.length);
-//       } catch (err) {
-//         console.log('axios error->'+err);
-//         if (err instanceof AxiosError) {
-//             console.log(err.response?.data);
-//         }
-        
-//       }
-
-//       if (result && result?.data.length>0) {
-      
-//         // let cleartext;
-//         // const iv = Buffer.from("KYC-encryption");
-//         // const cipher = Buffer.from(result.data);
-//          try {
-//         // cleartext = await crypto.subtle.decrypt(
-//         //     { name: "AES-GCM", iv },
-//         //     enckey,
-//         //     cipher,
-//         //   );
-       
-//         //   console.log('decrypted->'+cleartext.byteLength);
-//         const a = document.createElement('a');
-//         a.download = 'my-file.bin';
-//         const raw = new Uint8Array(result.data.length); 
-//         for (let i = 0; i < result.data.length; i++) 
-//             { raw[i] = result.data[i].charCodeAt(0); }
-//         const blob = new Blob([raw],  {type : 'application/pdf'} );
-//         a.href = URL.createObjectURL(blob);
-//         a.click();
-//        // URL.revokeObjectURL(fileDownloadUrl);
-//        }   catch (err) {
-//         console.log('decryption error->'+err);
-//       }
-//     }  
-//   }
-// }
   
-const download2 = async () => {
+const download = async () => {
    
     if (downloadfile) {
       let result;
@@ -262,17 +177,23 @@ const download2 = async () => {
 
 let clearEncKey:  CryptoKey;
 let fileName: string;
+let clearEncKeyHexString: string;
+let documentId:string;
   
   const upload = async () => {
 
    
     console.log('file to upload->'+file?.name);
-    const algorithm = "aes-256-gcm";
+ 
     clearEncKey = await generateKey();
     console.log('clearEnckey->'+clearEncKey);
    //const key = scryptSync("12345678", 'salt', 32);//crypto.randomBytes(32);
   //  const key = crypto.randomBytes(32);
   //  const iv = scryptSync("KYC-encryption", 'salt', 16);;//crypto.randomBytes(16);
+
+  clearEncKeyHexString = await cryptoKeyToHexString(clearEncKey);
+  console.log('clearEncKeyHexString->'+clearEncKeyHexString);
+ //save clearEncKeyHexString in local storage
     
     const formData = new FormData()
    // const cipher = createCipheriv(algorithm, Buffer.from(key),null);
@@ -304,7 +225,7 @@ let fileName: string;
      //   let encrypted = cipher.update(fileBuffer);
       // encrypted = cipher.final();
         blob= new Blob([ciphertext], { type: 'application/octet-stream' })
-       // formData.append('file',  blob, file.name+".enc");
+      
         formData.append('vp_token',  'vptoken');
         formData.append('file',  blob, file.name+".enc");
         try {
@@ -314,6 +235,10 @@ let fileName: string;
         const result=await axios.post('http://localhost:3000/upload',formData, config )
         console.log('off-chain FileName->'+result.data.path);
         fileName = result.data.path;
+        documentId = await Hash(blob);
+        console.log('documentId->'+documentId);
+        //call init_KYC_share
+
         } catch (err) {
             console.log('axios error->'+err);
         }
@@ -323,55 +248,7 @@ let fileName: string;
     
   }
 
-//   const download = async () => {
-//     let encdata;
-//     if (downloadfile) {
-//       let result;
-//       try {
-//       result=await axios.get(`http://localhost:3000/download?file=${downloadfile}`,
-   
-//         {responseType: 'stream'},
-//        );
-//         const stream = result.data;
-//         stream.on('data', (data: string) => { 
-//         encdata = data;
-//         console.log('legth of doanloaded data->'+data.length) 
-//       })
-    
-//       console.log('length of downloaded file->'+result.data.length);
-//       } catch (err) {
-//         console.log('axios error->'+err);
-//         if (err instanceof AxiosError) {
-//             console.log(err.response?.data);
-//         }
-        
-//       }
 
-//       if (result && result?.data.length>0) {
-      
-//         let cleartext;
-//         const iv = Buffer.from("KYC-encryption");
-//         const cipher = Buffer.from(result.data);
-//         try {
-//         cleartext = await crypto.subtle.decrypt(
-//             { name: "AES-GCM", iv },
-//             enckey,
-//             cipher,
-//           );
-       
-//           console.log('decrypted->'+cleartext.byteLength);
-//         const a = document.createElement('a');
-//         a.download = 'my-file.pdf';
-//         const blob = new Blob([cleartext], {type : 'application/pdf'});
-//         a.href = URL.createObjectURL(blob);
-//         a.click();
-//        // URL.revokeObjectURL(fileDownloadUrl);
-//        }   catch (err) {
-//         console.log('decryption error->'+err);
-//       }
-//     }  
-//   }
-// }
 
   let encryptedEncHexKey:string;
 
@@ -379,11 +256,9 @@ let fileName: string;
 
     //we are in web wallet
     const bankDID = "did:ebsi:zg4w51ujVxcVbok59meAUhK"
-     const clearEncKeyHexString = await cryptoKeyToHexString(clearEncKey);
-     console.log('clearEncKeyHexString->'+clearEncKeyHexString);
-    //save clearEncKeyString in local storage
-    //use it to encrypt KYC docs before sending them to off-chain storage
-    //create encryptedEncKey for a bank using bank's public key
+
+
+    //create encryptedEncHexKey for a bank using bank's public key
     const privateKeyJwkWallet = getKeysPairJwk_ES256(walletprivateKeyHex).privateKeyJWK_ES256;
     //we don't know bank's kid to use it to get its public key from bank's DIDdocument. 
     //just get its public key  directly from the bank's url
@@ -441,12 +316,12 @@ let fileName: string;
   } 
 
   const genWalletKeys = async ()=> {
-  
+  console.log('here');
     //generate wallet's ES256 and ES256K key pairs using wallets' privateKeyHex
    const {privateKeyJWK_ES256K, publicKeyJWK_ES256K} = getKeysPairJwk_ES256K(walletprivateKeyHex);
    const {privateKeyJWK_ES256, publicKeyJWK_ES256} = getKeysPairJwk_ES256(walletprivateKeyHex);
    //ES256 encryption keys do not depend on privatekeyHex. not used in this project
-   const {privateKeyJWK_ES256_Encryption,publicKeyJWK_ES256_Encryption} = await getKeysPairJwk_ES256_Encryption();
+ //  const {privateKeyJWK_ES256_Encryption,publicKeyJWK_ES256_Encryption} = await getKeysPairJwk_ES256_Encryption();
    //get wallet DIDs associated with public keys
    const didES256 = getDID_ES256(publicKeyJWK_ES256);
    const didES256K = getDID_ES256K(publicKeyJWK_ES256K);
@@ -455,20 +330,23 @@ let fileName: string;
    console.log('didEs256k->'+didES256K);
    console.log('public ES256->'+JSON.stringify(publicKeyJWK_ES256));
    console.log('public ES256K->'+JSON.stringify(publicKeyJWK_ES256K));
-   console.log('public ES256 Encryption->'+JSON.stringify(publicKeyJWK_ES256_Encryption));
+   //console.log('public ES256 Encryption->'+JSON.stringify(publicKeyJWK_ES256_Encryption));
 
   }
 
+
   const mockdecrypt = async () => {
 
-    //choose file option, and upload option 
+    //choose file option, and upload option -> generate clearEnckey : Cryptokey
+    //upload -> // convert clearEnckey to clearEncKeyHexString and save it to localstorag
   
-    //call mockdecrypt
+    //proceed with below
 
     try {
-    //   const config = {     
-    //     headers: { 'content-type': 'multipart/form-data' }
-    // }
+    
+    
+    // get clearEncKeyHexString from local storage and encrypt it. saved in encryptedEncHexKey
+
     await encryptKey();
     console.log('to send encEncKey->'+encryptedEncHexKey);
     const {privateKeyJWK_ES256, publicKeyJWK_ES256} = getKeysPairJwk_ES256(walletprivateKeyHex);
@@ -486,9 +364,90 @@ let fileName: string;
    //console.log('mockdecrypt->'+cleartextArrayBuffer.data);
    const a = document.createElement('a');
    a.download = 'my-file.pdf';
-   // const raw = new Uint8Array(result.data.length); 
-   // for (let i = 0; i < result.data.length; i++) 
-   //     { raw[i] = result.data[i].charCodeAt(0); }
+
+   const blob = new Blob([cleartextArrayBuffer.data],  {type : 'application/pdf'} );
+   a.href = URL.createObjectURL(blob);
+   a.click();
+
+    } catch (err) {
+        console.log('axios error->'+err);
+    }
+  }
+
+  let eventId:string;
+  const addevent = async () => {
+
+    //run upload first
+
+    const documentId = '0xd36981def879f834658e89d0ba02fe4cd2bb9d0f9a1181214b7e7995a557c2b5'
+    const sharedForName = "bank Z";
+    const sharedForDid = "bankdid";
+
+    await encryptKey();
+    console.log('to send encEncKey->'+encryptedEncHexKey);
+
+    const {privateKeyJWK_ES256, publicKeyJWK_ES256} = getKeysPairJwk_ES256(walletprivateKeyHex);
+
+    const didES256 = getDID_ES256(publicKeyJWK_ES256);
+
+    const eventMetadata = 
+      {
+        eventType: "KYC_docs_shared",
+        es256Did: didES256,
+        sharedForName,
+        sharedForDid,
+        offchainFilepath: fileName,
+        encryptedEncryptionKey: encryptedEncHexKey
+   
+    
+      }
+   
+    const externalHash = `KYC_docs_shared to ${sharedForName}`
+    const  result = await addeventTnT(documentId,eventMetadata,externalHash);
+   
+ 
+   console.log('addevent result->'+JSON.stringify(result));
+ 
+   if (result?.success) {
+    eventId = ethers.utils.keccak256(Buffer.from(externalHash))
+    console.log('eventid->'+eventId);
+   }
+
+   //call addEventBank(documentId, eventId, customerName)
+  }
+
+  const eventdecrypt = async () => {
+
+    //choose file option, and upload option -> generate clearEnckey : Cryptokey
+    //upload -> // convert clearEnckey to clearEncKeyHexString and save it to localstorag
+    
+
+    //proceed with below
+
+    try {
+    
+    
+    // get clearEncKeyHexString from local storage and encrypt it. saved in encryptedEncHexKey
+
+    await encryptKey();
+    await addevent();
+
+    console.log('to send encEncKey->'+encryptedEncHexKey);
+    const {privateKeyJWK_ES256, publicKeyJWK_ES256} = getKeysPairJwk_ES256(walletprivateKeyHex);
+    const didES256 = getDID_ES256(publicKeyJWK_ES256);
+    const cleartextArrayBuffer=await axios.post(`http://localhost:7002/v3/tnt/decrypt_docs`,
+      { 
+        documentId,
+        eventId
+       
+      },
+      {responseType: "arraybuffer"}
+      
+     )
+   //console.log('mockdecrypt->'+cleartextArrayBuffer.data);
+   const a = document.createElement('a');
+   a.download = 'my-file.pdf';
+
    const blob = new Blob([cleartextArrayBuffer.data],  {type : 'application/pdf'} );
    a.href = URL.createObjectURL(blob);
    a.click();
@@ -516,7 +475,7 @@ let fileName: string;
           <input type="text" onChange={(e) => {
               if (e.target.value) setDownloadFile(e.target.value)
           } } />
-          <button type="button" onClick={download2}>Download</button>
+          <button type="button" onClick={download}>Download</button>
         </div>
 
         <div>
@@ -531,6 +490,16 @@ let fileName: string;
      
           <button type="button" onClick={mockdecrypt}>mock decrypt</button>
         </div>
+
+        <div>
+     
+        <button type="button" onClick={addevent}>add event</button>
+        </div>
+
+        <div>
+     
+     <button type="button" onClick={eventdecrypt}>event decrypt</button>
+   </div>
         
     </>
   )

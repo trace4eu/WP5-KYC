@@ -6,10 +6,11 @@ export class DecryptDto {
   // did!: string;
 
   @IsString()
-  CBCurl!: string;
+  documentId!: string;
 
   @IsString()
-  pin!: string;
+  eventId!: string;
+
 
  
 }

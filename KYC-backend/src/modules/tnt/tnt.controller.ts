@@ -37,7 +37,7 @@ import { ProductsDto } from "../admin/dto/paginate.dto.js";
 import TnTqueryDto from "./dto/tntquery.dto.js";
 import TnTdocumentDto from "./dto/tntdocument.dto.js";
 import { walletdidDto } from "./dto/walletdid.dto.js";
-import { MockDecryptDto } from "../admin/dto/decrypt.dto.js";
+import DecryptDto, { MockDecryptDto } from "../admin/dto/decrypt.dto.js";
 
 @Controller("/tnt")
 export class TnTController {
@@ -93,7 +93,7 @@ export class TnTController {
     async mockDecryptDocs(
       @Body() mockDecryptDto:MockDecryptDto
     ): Promise<Buffer> {
-      
+
       const result= await this.tntService.adminMockDecryptDocs(mockDecryptDto);
      
      if ('success' in result) {
@@ -106,6 +106,28 @@ export class TnTController {
       return result;
     
     }
+
+      //remove this
+    @HttpCode(200)
+    @Post("/decrypt_docs")
+   // @Header('Content-Type', 'application/octet-stream')
+    async decryptDocs(
+      @Body() decryptDto:DecryptDto
+    ): Promise<Buffer> {
+      
+      const result= await this.tntService.adminDecryptDocs(decryptDto);
+     
+     if ('success' in result) {
+       let error;
+       if ('errors' in result) error = result.errors[0]; else error='no error description'
+       throw new OAuth2Error("invalid_request", {
+          errorDescription: error,
+        });
+      }
+      return result;
+    
+    }
+
 
 
   @HttpCode(200)
