@@ -1798,6 +1798,8 @@ console.log('decrypted key buffer->'+decryptedEncKey);
 
     const {documentHash, didKey, customerName, vp_token} = newKYCBody;
   
+    console.log('documentid->'+documentHash);
+
     const {kycMeta} = await this.getDocument2(documentHash);
     if (kycMeta) {
       console.log('kycMetae->'+kycMeta);
@@ -1855,9 +1857,11 @@ console.log('decrypted key buffer->'+decryptedEncKey);
     const rpcresponse =  await this.jsonrpcCall("createDocument",params,authToken);
 
     if (!rpcresponse.success) {
+      console.log('could not create tnt doc');
       return rpcresponse
     }
 
+    console.log('tnt doc created');
     //deligate access to didkey
 
     const authTokenWrite = await this.authorisationAuth('tnt_write', "empty", "ES256");
@@ -1887,7 +1891,31 @@ console.log('decrypted key buffer->'+decryptedEncKey);
     
     }]
  
-    return await this.jsonrpcCall("grantAccess",paramsGrant,authTokenWrite);
+    const rpcresponse2= await this.jsonrpcCall("grantAccess",paramsGrant,authTokenWrite);
+
+    if (!rpcresponse2.success) {
+      console.log('could not grant delegate access');
+      return rpcresponse2
+    }
+
+    console.log('granted delegate access');
+    //grant write access
+
+  
+  
+ 
+    const paramsGrant2 = [{
+      from: wallet.address,
+      documentHash,
+      grantedByAccount,
+      subjectAccount,
+      grantedByAccType,
+      subjectAccType,
+      permission:1,
+    
+    }]
+ 
+    return await this.jsonrpcCall("grantAccess",paramsGrant2,authTokenWrite);
 
     //add in tntdocs db
 
