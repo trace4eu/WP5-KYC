@@ -2,16 +2,19 @@ import axios, { AxiosResponse } from "axios";
 import { ethers } from "ethers";
 //import { randomUUID } from "crypto";
 import {v4 as uuidv4} from 'uuid';
-import createVPJwt  from "./verifiablePresentation";
+import createVPJwt, { JWK }  from "./verifiablePresentation";
 //import { walletprivateKeyHex } from "./app";
-import { getDID_ES256, getDID_ES256K,  getKeysPairJwk_ES256K } from "./keysUtil";
+import { getBankJwk, getDID_ES256, getDID_ES256K,  getKeysPairJwk_ES256K } from "./keysUtil";
 import elliptic from "elliptic";
 import { base64url } from "multiformats/bases/base64";
-import { DIDDocument, Resolver, JsonWebKey as JWK,VerificationMethod } from "did-resolver";
+import { DIDDocument, Resolver, JsonWebKey,VerificationMethod } from "did-resolver";
 import { getResolver ,util, } from "@cef-ebsi/key-did-resolver";
 import { createHash } from "crypto";
-import { TnTDocument } from "../interfaces/utils.interface"
-import WalletModel from "models/WalletModel";
+import { KYCEvent, TnTDocument, TnTEvent, EventType, KYC_VERIFIED } from "../interfaces/utils.interface"
+import WalletModel from "../models/WalletModel";
+import { decryptEncryptionKey, fromHexString } from "./encryptPublic";
+import { walletModel } from "../index";
+
 
 const authorisationApiUrl = "https://api-pilot.ebsi.eu/authorisation/v4"
 const ledgerApiUrl= "https://api-pilot.ebsi.eu/ledger/v4/blockchains/besu"
@@ -560,7 +563,65 @@ export async function waitToBeMined(
     return `0x${Buffer.from(did).toString("hex")}`;
   }
 
-  
+
+  export async function getEventsOfType(hash:string, type: EventType) {
+
+    const {kycEvents} = await getEvents(hash);
+
+    const kycEventsOftype = kycEvents.filter((kycevent)=> kycevent.eventType.includes(type) )
+    console.log('documentid->'+hash);
+    console.log('eventtype->'+type);
+    console.log('events->'+JSON.stringify(kycEventsOftype));
+
+   return kycEventsOftype
+
+  }
+
+    
+  async function getEvents(hash:string) {
+
+    const docUrl = 'https://api-pilot.ebsi.eu/track-and-trace/v1/documents'
+
+    const {kycMeta,events,createdAt} = await getDocument(hash);
+
+    let kycEvents: KYCEvent[] = [] ;
+    let success:boolean = true;
+    if(!events) {
+      return {kycEvents,success}
+    }
+
+    await Promise.all(
+      events.map(async event => {
+
+        try {
+          const response = await axios.get(
+            `${docUrl}/${hash}/events/${event}`,
+            
+          )
+          console.log('event->'+response.data);
+          const tntEvent = response.data as TnTEvent;
+          const kycEvent = JSON.parse(tntEvent.metadata) as KYCEvent;
+          kycEvent.sender = tntEvent.sender;
+          kycEvent.createdAt = tntEvent.timestamp.datetime;
+          kycEvent.externalHash = tntEvent.externalHash;
+          kycEvent.eventId = event;
+          
+          kycEvents.push(kycEvent)
+          
+      
+          } catch (error) {
+           // console.log('getdocument error->'+error);
+            success = false;
+          // return {pdoEvents: []}
+          } 
+        
+      })
+   )
+
+    return {kycEvents, success}
+
+  }
+
   export async function getDocument(hash:string) {
 
     const docUrl = 'https://api-pilot.ebsi.eu/track-and-trace/v1/documents'
@@ -583,5 +644,147 @@ export async function waitToBeMined(
     } 
   
    
+
+  }
+
+  export async function getEvent(hash:string, eventId: string) {
+
+    const docUrl = 'https://api-pilot.ebsi.eu/track-and-trace/v1/documents'
+
+    //let kycEvent: KYCEvent ={} ;
+    let success:boolean = true;
+
+
+
+        try {
+          const response = await axios.get(
+            `${docUrl}/${hash}/events/${eventId}`,
+            
+          )
+          console.log('event->'+response.data);
+          const tntEvent = response.data as TnTEvent;
+          const kycEvent = JSON.parse(tntEvent.metadata) as KYCEvent;
+          //return {sender: tntEvent.sender, kycEvent, success}
+          return response.data;
+          //kycEvent.createdAt = tntEvent.timestamp.datetime;
+         // pdoEvents.push(pdoEvent)
+          
+      
+          } catch (error) {
+           // console.log('getdocument error->'+error);
+            success = false;
+          // return {pdoEvents: []}
+          } 
+        
+      
+   
+
+    return { success}
+
+  }
+
+  export async function getPersonalData(event: KYC_VERIFIED ,bankJWK:JWK) {
+
+    const privateKeyJwkWallet = walletModel.getKeysES256();
+    //we don't know bank's kid to use it to get its public key from bank's DIDdocument. 
+    //just get its public key  directly from the bank's url
+  // const publicKeyEncryptionJwkIssuer = await getPublicKeyJWK_fromDID(bankDID,didkeyResolver,ebsiResolver);
+  //  const publicKeyJwkBank = await getBankJwk("http://localhost:7002/v3/auth/jwks");
+
+    const publicKeyJwkBank = bankJWK;
+    if (typeof(event.encryptedPersonalData) !='string') {
+      return {
+        success: false,
+        errors: [
+          'encryptedPersonalData not a string'
+        ],
+      };
+    }
+
+   
+
+    let decryptionKey;        
+    decryptionKey = await decryptEncryptionKey(
+      event.encryptedEncryptionKey,
+      publicKeyJwkBank,
+      privateKeyJwkWallet
+    )
+
+    let personalDataDecryptionKey;
+
+    if (decryptionKey) {
+      personalDataDecryptionKey = await crypto.subtle.importKey(
+          "raw",
+          decryptionKey,
+      
+          "AES-GCM",
+          true,
+          ["decrypt"]
+        );
+    } else {
+
+      return {
+        success: false,
+        errors: [
+          'could not get personal data decryption key'
+        ],
+      };
+    }
+
+    console.log('starting decryption');
+    console.log('encryptedPersonaldata->'+event.encryptedPersonalData);
+    const encryptedPersonaldata = fromHexString(event.encryptedPersonalData);
+    console.log('encryptedPersonaldata length->'+encryptedPersonaldata.length);
+    //const dataBuffer = await encryptedDoc.data.arrayBuffer();
+   // const dataBuffer = this.stringToArrayBuffer(encryptedDoc.data);
+  //  console.log('encypted doc data length->'+dataBuffer.length);
+    let cleartext: ArrayBuffer;
+    const iv = Buffer.from("KYC-encryption");
+    
+    try {
+     cleartext = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv },
+        personalDataDecryptionKey,
+        encryptedPersonaldata,
+      );
+      console.log('decryption completed');
+    //   console.log('decrypted->'+cleartext.byteLength);
+    } catch (e) {
+
+      return {
+        success: false,
+        errors: [ 
+          `could not decrypt personal data doc ${e}`
+        ],
+      };
+    }
+    if (cleartext) {
+      console.log('cleatext length->'+cleartext.byteLength);
+      const clearDataBuffer = Buffer.from(cleartext);
+      console.log('clearPersonaldataBuffer length->'+clearDataBuffer.length);
+      const clearStringText = clearDataBuffer.toString();
+      console.log('clearpersonal->'+clearStringText);
+      try {
+      const personalDataString = JSON.parse(clearStringText);
+      return personalDataString
+      } catch (e) {
+        return {
+          success: false,
+          errors: [ 
+            `something went wrong`
+          ],
+        };
+
+      }
+     
+   
+    }
+
+    return {
+      success: false,
+      errors: [ 
+        `something went wrong`
+      ],
+    };
 
   }

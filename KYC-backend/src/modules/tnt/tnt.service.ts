@@ -115,8 +115,8 @@ import NewBatchDto, { InitKYCShareDto } from "./dto/initKYCshare.dto.js";
 import { Product, ProductDocument } from "../../shared/models/products.model.js";
 import axios, { AxiosError, AxiosResponse } from "axios";
 import { logAxiosRequestError, signAndSendTransaction, waitToBeMined } from "../../shared/credential-issuer/utils.js";
-import { Alg, BatchAll, CompletedBatch, CompletedTask, KYC_SHARED, KYCEvent, PaginatedList, PDOdocument, PDOEvent, PendingBatch, PendingBatchAll, PendingTask, RequiredEvent, TnTDocument, TnTEvent, UnknownObject, UnsignedTransaction } from "./interfaces/index.js";
-import { fromHexString, multibaseEncode, removePrefix0x } from "./utils/utils.js";
+import { Alg, BatchAll, CompletedBatch, CompletedTask, KYC_SHARED, KYC_VERIFIED, KYCEvent, PaginatedList, PDOdocument, PDOEvent, PendingBatch, PendingBatchAll, PendingTask, RequiredEvent, TnTDocument, TnTEvent, UnknownObject, UnsignedTransaction } from "./interfaces/index.js";
+import { fromHexString, multibaseEncode, removePrefix0x, toHexString } from "./utils/utils.js";
 import createVPJwt from "./utils/verifiablePresentation.js";
 import Client from "./utils/Client.js";
 import crypto from "node:crypto";
@@ -132,6 +132,10 @@ import DecryptDto, { MockDecryptDto } from "../admin/dto/decrypt.dto.js";
 import { getPublicKeyJWK_fromDID } from "./utils/didresolver.js";
 import { getResolver as getEbsiDidResolver } from "@cef-ebsi/ebsi-did-resolver";
 import { getResolver as getKeyDidResolver } from "@cef-ebsi/key-did-resolver";
+import  { AddEventDto } from "./dto/addEvent.dto.js";
+import {Event, EventsDocument } from "../../shared/models/events.model.js";
+import { cryptoKeyToHexString, decryptEncryptionKey, encryptEncryptionKey, generateEncKey } from "./utils/tntUtils.js";
+import { PersonalDataObject } from "../admin/dto/kycverified.dto.js";
 
 type EbsiVerifiableAttestations = EbsiVerifiableAttestation20221101 | EbsiVerifiableAttestation202401;
 //type LevelIssuer = Level<LevelDbKeyIssuer, LevelDbObjectIssuer>;
@@ -292,6 +296,7 @@ export class TntService /*implements OnModuleInit, OnModuleDestroy*/ {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   
     @InjectModel(Bank.name) private bankModel: Model<BanksDocument>,
+    @InjectModel(Event.name) private eventModel: Model<EventsDocument>,
 
   ) {
 
@@ -724,7 +729,7 @@ return result;
     const {privateKeyJwk} = await this.getIssuerKeyPair("ES256");
     if (privateKeyJwk) {
       
-      decryptionKey = await this.decryptEncryptionKey(
+      decryptionKey = await decryptEncryptionKey(
         encEncKey,
         publicKeyJwkWallet,
         privateKeyJwk
@@ -834,55 +839,55 @@ return result;
   
   
 
-  async adminDecryptDocs(decryptDto: DecryptDto): Promise<CheckResult|Buffer> {
+  async adminDecryptDocs(kycSharedEvent: KYC_SHARED, eventId:string): Promise<CheckResult|Buffer> {
 
-    const {documentId, eventId} = decryptDto;
+    // const {documentId, eventId} = decryptDto;
 
-    const {sender, kycEvent, success} = await this.getEvent(documentId, eventId);
+    // const {sender, kycEvent, success} = await this.getEvent(documentId, eventId);
 
-    //event sender is the wallet es256k did
-    //encryption was perfromed with es256 wallet private key. -> Need wallet es256 public key for decryption
+    // //event sender is the wallet es256k did
+    // //encryption was perfromed with es256 wallet private key. -> Need wallet es256 public key for decryption
 
-    if (!sender || !success) {
-      return {
-        success: false,
-        errors: [
-          'could not get event data'
-        ],
-      };
-    }
+    // if (!sender || !success) {
+    //   return {
+    //     success: false,
+    //     errors: [
+    //       'could not get event data'
+    //     ],
+    //   };
+    // }
 
-    if (kycEvent.eventType != "KYC_docs_shared") {
+    // if (kycEvent.eventType != "KYC_docs_shared") {
 
-      return {
-        success: false,
-        errors: [
-          `invalid event type -> ${kycEvent.eventType}`
-        ],
-      };
-    }
+    //   return {
+    //     success: false,
+    //     errors: [
+    //       `invalid event type -> ${kycEvent.eventType}`
+    //     ],
+    //   };
+    // }
 
-    //decrypt encrypted encryption key
+    // //decrypt encrypted encryption key
 
-    const kycSharedEvent = kycEvent as KYC_SHARED;
+    // const kycSharedEvent = kycEvent as KYC_SHARED;
 
-    if (!kycSharedEvent.encryptedEncryptionKey) {
-      return {
-        success: false,
-        errors: [
-          `encr encr key is missing from event`
-        ],
-      };
-    }
+    // if (!kycSharedEvent.encryptedEncryptionKey) {
+    //   return {
+    //     success: false,
+    //     errors: [
+    //       `encr encr key is missing from event`
+    //     ],
+    //   };
+    // }
 
-    if (!kycSharedEvent.offchainFilepath) {
-      return {
-        success: false,
-        errors: [
-          `offchain file path is missing from event`
-        ],
-      };
-    }
+    // if (!kycSharedEvent.offchainFilepath) {
+    //   return {
+    //     success: false,
+    //     errors: [
+    //       `offchain file path is missing from event`
+    //     ],
+    //   };
+    // }
 
     if (!kycSharedEvent.es256Did) {
       return {
@@ -892,6 +897,7 @@ return result;
         ],
       };
     }
+
     const publicKeyJwkWallet = await getPublicKeyJWK_fromDID(kycSharedEvent.es256Did,this.didkeyResolver,this.ebsiResolver);
 
     if (!publicKeyJwkWallet) {
@@ -910,7 +916,7 @@ return result;
     const {privateKeyJwk} = await this.getIssuerKeyPair("ES256");
     if (privateKeyJwk) {
       
-      decryptionKey = await this.decryptEncryptionKey(
+      decryptionKey = await decryptEncryptionKey(
         kycSharedEvent.encryptedEncryptionKey,
         publicKeyJwkWallet,
         privateKeyJwk
@@ -1018,91 +1024,229 @@ return result;
     
   }
   
-
-  async  decryptEncryptionKey(
-    cipherEncHexKey:string,
-    publicEncryptionKeyJWK: JWK,
-    privateEncryptionKeyJWK: JWK
-  ): Promise<ArrayBuffer> {
-
-    const iv = Buffer.from("KYC-encryption");
-
-    console.log('before import keyWalletPublic');
-    const keyWalletPublic = await crypto.subtle.importKey(
-        "jwk",
-        publicEncryptionKeyJWK,
-        {
-          name: "ECDH",
-          namedCurve: "P-256",
-        },
-        true,
-       // ['sign']
-       []
-      ) 
-
-      console.log('after keyWalletPublic');
-
-    const keyIssuerPrivate = await crypto.subtle.importKey(
-        "jwk",
-        privateEncryptionKeyJWK,
-        {
-          name: "ECDH",
-          namedCurve: "P-256",
-        },
-        true,
-        ['deriveBits']
-      );
-
-      console.log('detivedbits 2');
-
-      var sharedBitsIssuer = await crypto.subtle.deriveBits({
-        "name": "ECDH",
-        "public": keyWalletPublic
-    }, keyIssuerPrivate, 256);
+  async adminAddVerifiedEvent(
+    documentId:string,
+    sharedEvent: KYC_SHARED, 
+    personalData: object,
+    customerName:string,
   
-// // The first half of the resulting raw bits is used as a salt.
-var sharedDS = sharedBitsIssuer.slice(0, 16);
+  ): Promise<CheckResult> {
 
-// // The second half of the resulting raw bits is imported as a shared derivation key.
-var sharedDKIssuer = await crypto.subtle.importKey('raw', sharedBitsIssuer.slice(16, 32), "PBKDF2", false, ['deriveKey']);
+    
+    //generate random key, encrypt personalData with random key
+    //encrypt hex of random key with wallet's ES256 public key in the KYC_docs_shared event
+    //add KYC_docs_verified event
+    //save hex of random key in events db
 
-// // A new shared AES-GCM encryption / decryption key is generated using PBKDF2
-// // This is computed separately by both parties and the result is always the same.
-var key = await crypto.subtle.deriveKey({
-    "name": "PBKDF2",
-    "salt": sharedDS,
-    "iterations": 100000,
-    "hash": "SHA-256"
-}, sharedDKIssuer, {
-    "name": "AES-GCM",
-    "length": 256
-}, true, ['encrypt', 'decrypt']);
+    console.log('personalData2->'+JSON.stringify(personalData));
+    const clearEncKey = await generateEncKey();
+    console.log('clearEnckey->'+clearEncKey);
 
-console.log('after derive key');
+    const clearEncKeyHexString = await cryptoKeyToHexString(clearEncKey);
+    console.log('clearEncKeyHexString->'+clearEncKeyHexString);
+   //save clearEncKeyHexString in local storage
+  // const personalDataHex = Buffer.from("hello world", "hex");
+    const personalDataHex = Buffer.from(JSON.stringify(personalData));
+    console.log('personalDataHex->'+personalDataHex+personalDataHex.length);
+     // const cipher = createCipheriv(algorithm, Buffer.from(key),null);
+     const iv = Buffer.from("KYC-encryption");
 
+     const encryptedPersonalDataBuf = await crypto.subtle.encrypt(
+      {
+        name: 'AES-GCM',
+        iv: iv,
+      //  additionalData: aad,
+        length: 256,
+      },
+      clearEncKey,
+      personalDataHex
+    );
 
-//get it from event data
-//const uint8Array = Buffer.from(cipherEncKey, 'binary');
-const uint8Array = fromHexString(cipherEncHexKey);
-const decryptedEncKey = await crypto.subtle.decrypt({
-    "name": "AES-GCM",
-    "iv": iv
-}, key, uint8Array);
+    const encryptedPersonalData =  toHexString(new Uint8Array(encryptedPersonalDataBuf));
+    
+    if (!sharedEvent.es256Did) {
+      return {
+        success: false,
+        errors: [
+          `es256 did is missing from event`
+        ],
+      };
+    }
+    const publicKeyJwkWallet = await getPublicKeyJWK_fromDID(sharedEvent.es256Did,this.didkeyResolver,this.ebsiResolver);
 
-console.log('decrypted key buffer->'+decryptedEncKey);
-// // The humans decode the message into human readable text...
-// var decoded = new TextDecoder().decode(decryptedEncKey);
+    if (!publicKeyJwkWallet) {
+      console.log('could not get publickey from did:key');
+      return {
+        success: false,
+        errors: [
+          'could not get publickey from did:key'
+        ],
+      };
+    }
 
-// // // The humans output the message to the console and gasp!
-//  console.log('decrypted key decoded->'+decoded);
+    const {privateKeyJwk} = await this.getIssuerKeyPair("ES256");
 
- //use decrypted enckey to decrypt the off-chain docs
- console.log('key length='+Buffer.from(decryptedEncKey).length);
+    const encryptedEncryptionKey= await encryptEncryptionKey(
+      clearEncKeyHexString, 
+      publicKeyJwkWallet, 
+      privateKeyJwk);
 
+   //add event
+   console.log('adding KYC_docs_verified event');
 
- return decryptedEncKey;
+    
+   const eventMetadata = 
+   {
+     eventType: "KYC_docs_verified",
+     verifiedBy: this.orgName,
+     encryptedEncryptionKey,
+     encryptedPersonalData
+   } 
 
+   console.log('encryptedPersonalData->'+encryptedPersonalData);
+   const externalHash = `KYC_docs_verified by ${this.orgName}`
+
+   const authTokenWrite = await this.authorisationAuth('tnt_write', "empty", "ES256");
+   console.log('auhtTokenWrite->'+authTokenWrite);
+
+   if (typeof authTokenWrite !== 'string') {
+    return {
+      success:false,
+      errors: ['error from authorization API '+authTokenWrite.error]
+    }
+   }
+ 
+   const wallet = new ethers.Wallet(this.issuerPrivateKeyHex);
+
+   const params = [{
+    from: wallet.address,
+    eventParams: {
+      documentHash:documentId,
+      externalHash,
+      sender: await this.didToHex(this.issuerDid),
+   
+      origin:"my origin",
+      metadata:JSON.stringify(eventMetadata)
+    }
+    
+  }]
+
+     const result = await this.jsonrpcCall("writeEvent",params,authTokenWrite);
+
+     console.log('addevent result->'+JSON.stringify(result));
+
+     if (result?.success) {
+      const eventId = ethers.utils.keccak256(Buffer.from(externalHash))
+    
+      console.log('eventid->'+eventId);
+      //add to events db
+
+      const newdbEvent = {
+       documentId,
+       eventId,
+       eventType: 'KYC_docs_verified',
+       customerName: customerName,
+       randomEncKey: clearEncKeyHexString,
+       status: 'completed'
+
+      } as Event;
+
+      await new this.eventModel(newdbEvent).save();
+
+      return {success:true}
+      
+     }
+
+     return {
+      success:false,
+      errors:['error from tnt add event']
+     }
   }
+
+//   async  decryptEncryptionKey(
+//     cipherEncHexKey:string,
+//     publicEncryptionKeyJWK: JWK,
+//     privateEncryptionKeyJWK: JWK
+//   ): Promise<ArrayBuffer> {
+
+//     const iv = Buffer.from("KYC-encryption");
+
+//     console.log('before import keyWalletPublic');
+//     const keyWalletPublic = await crypto.subtle.importKey(
+//         "jwk",
+//         publicEncryptionKeyJWK,
+//         {
+//           name: "ECDH",
+//           namedCurve: "P-256",
+//         },
+//         true,
+//        // ['sign']
+//        []
+//       ) 
+
+//       console.log('after keyWalletPublic');
+
+//     const keyIssuerPrivate = await crypto.subtle.importKey(
+//         "jwk",
+//         privateEncryptionKeyJWK,
+//         {
+//           name: "ECDH",
+//           namedCurve: "P-256",
+//         },
+//         true,
+//         ['deriveBits']
+//       );
+
+//       console.log('detivedbits 2');
+
+//       var sharedBitsIssuer = await crypto.subtle.deriveBits({
+//         "name": "ECDH",
+//         "public": keyWalletPublic
+//     }, keyIssuerPrivate, 256);
+  
+// // // The first half of the resulting raw bits is used as a salt.
+// var sharedDS = sharedBitsIssuer.slice(0, 16);
+
+// // // The second half of the resulting raw bits is imported as a shared derivation key.
+// var sharedDKIssuer = await crypto.subtle.importKey('raw', sharedBitsIssuer.slice(16, 32), "PBKDF2", false, ['deriveKey']);
+
+// // // A new shared AES-GCM encryption / decryption key is generated using PBKDF2
+// // // This is computed separately by both parties and the result is always the same.
+// var key = await crypto.subtle.deriveKey({
+//     "name": "PBKDF2",
+//     "salt": sharedDS,
+//     "iterations": 100000,
+//     "hash": "SHA-256"
+// }, sharedDKIssuer, {
+//     "name": "AES-GCM",
+//     "length": 256
+// }, true, ['encrypt', 'decrypt']);
+
+// console.log('after derive key');
+
+
+// //get it from event data
+// //const uint8Array = Buffer.from(cipherEncKey, 'binary');
+// const uint8Array = fromHexString(cipherEncHexKey);
+// const decryptedEncKey = await crypto.subtle.decrypt({
+//     "name": "AES-GCM",
+//     "iv": iv
+// }, key, uint8Array);
+
+// console.log('decrypted key buffer->'+decryptedEncKey);
+// // // The humans decode the message into human readable text...
+// // var decoded = new TextDecoder().decode(decryptedEncKey);
+
+// // // // The humans output the message to the console and gasp!
+// //  console.log('decrypted key decoded->'+decoded);
+
+//  //use decrypted enckey to decrypt the off-chain docs
+//  console.log('key length='+Buffer.from(decryptedEncKey).length);
+
+
+//  return decryptedEncKey;
+
+//   }
 
 
   //returns error checkresult or vc
@@ -1800,7 +1944,7 @@ console.log('decrypted key buffer->'+decryptedEncKey);
   
     console.log('documentid->'+documentHash);
 
-    const {kycMeta} = await this.getDocument2(documentHash);
+    const {kycMeta} = await this.getDocument(documentHash);
     if (kycMeta) {
       console.log('kycMetae->'+kycMeta);
       return {
@@ -1823,7 +1967,7 @@ console.log('decrypted key buffer->'+decryptedEncKey);
 
    //create TNT doc
 
-   const tempHash= `0x${crypto.randomBytes(32).toString("hex")}`
+  // const tempHash= `0x${crypto.randomBytes(32).toString("hex")}`
 
    const authToken = await this.authorisationAuth('tnt_create', "empty", "ES256");
    console.log('auhtToken->'+authToken);
@@ -1923,10 +2067,46 @@ console.log('decrypted key buffer->'+decryptedEncKey);
 
   }
 
+  //called by customer wallets to notify bank of an event on their KYC docs
+
+  async add_event(
+   
+    bankEvent: AddEventDto
+  ): Promise<CheckResult> {
+
+    if (this.opMode !== "BANK") {
+      this.logger.error('only available to Banks');
+      throw new BadRequestError(
+       'only available to Banks'
+      );
+     }
+
+    const {documentId, eventId, customerName, eventType} = bankEvent;
+
+    const newEvent = {
+      documentId,
+      eventId,
+      customerName,
+      eventType,
+      status: 'pending'
+
+    } as Event;
+
+     try{
+      await new this.eventModel(newEvent).save();
+     } catch (e) {
+      console.log('error adding event to db');
+      return {
+        success:false,
+        errors:['error adding to events db. may be duplicate']
+      }
+     }
+      return {success:true}
+
+    }
 
 
-
-  async getDocument(hash:string) {
+  async getDocument2(hash:string) {
 
     const docUrl = 'https://api-pilot.ebsi.eu/track-and-trace/v1/documents'
 
@@ -1951,7 +2131,7 @@ console.log('decrypted key buffer->'+decryptedEncKey);
 
   }
 
-  async getDocument2(hash:string) {
+  async getDocument(hash:string) {
 
     const docUrl = 'https://api-pilot.ebsi.eu/track-and-trace/v1/documents'
 
@@ -2012,7 +2192,7 @@ console.log('decrypted key buffer->'+decryptedEncKey);
   }
 
 
-  async getEvents(hash:string, events: string[]) {
+  async getEvents2(hash:string, events: string[]) {
 
     const docUrl = 'https://api-pilot.ebsi.eu/track-and-trace/v1/documents'
 
@@ -2044,6 +2224,44 @@ console.log('decrypted key buffer->'+decryptedEncKey);
    )
 
     return {pdoEvents, success}
+
+  }
+
+  
+  async getEvents(hash:string, events: string[]) {
+
+    const docUrl = 'https://api-pilot.ebsi.eu/track-and-trace/v1/documents'
+
+    let kycEvents: KYCEvent[] = [] ;
+    let success:boolean = true;
+
+    await Promise.all(
+      events.map(async event => {
+
+        try {
+          const response = await axios.get(
+            `${docUrl}/${hash}/events/${event}`,
+            
+          )
+          console.log('event->'+response.data);
+          const tntEvent = response.data as TnTEvent;
+          const kycEvent = JSON.parse(tntEvent.metadata) as KYCEvent;
+          kycEvent.createdAt = tntEvent.timestamp.datetime;
+          kycEvent.externalHash = tntEvent.externalHash;
+          
+          kycEvents.push(kycEvent)
+          
+      
+          } catch (error) {
+           // console.log('getdocument error->'+error);
+            success = false;
+          // return {pdoEvents: []}
+          } 
+        
+      })
+   )
+
+    return {kycEvents, success}
 
   }
 
@@ -2287,109 +2505,39 @@ console.log('decrypted key buffer->'+decryptedEncKey);
     
   async document(tntQuery: TnTdocumentDto): Promise<object> {
 
-    const {documentId, fromCustomer} = tntQuery;
-    const {pdodocument,requiredEvents, events, createdAt} = await this.getDocument(documentId);
+    const {documentId} = tntQuery;
+    const {kycMeta, events, createdAt} = await this.getDocument(documentId);
    
 
-   
-    if (!pdodocument) 
+    if (!kycMeta) 
       return {
           success:false,
-          errors:['error getting tnt document']
+          errors:['error getting kyc document']
       }
 
-
-
-    const {pdoEvents,success} = await this.getEvents(documentId,events);
+    const {kycEvents,success} = await this.getEvents(documentId,events);
 
     if (!success) 
       return {
           success:false,
-          errors:['error getting tnt document events']
+          errors:['error getting kyc document events']
       }
 
-    console.log('pdoevents->'+JSON.stringify(pdoEvents));
-
-    if (fromCustomer=="false") {
-
-      console.log('not from customer');
+     console.log('kycevents->'+JSON.stringify(kycEvents));
 
 
-        const batchCompleted = pdoEvents.some(event => (event.lastInChain));
-        const pendingRequiredEvents: RequiredEvent[] = [];
-        const completedEvents = pdoEvents;
-
-        if (!batchCompleted) {
-     
-           requiredEvents.map(reqEvent => {
-           
-               if (!(pdoEvents.some(pdoEvent => 
-                 pdoEvent.type == reqEvent.type
-               )))
-               pendingRequiredEvents.push({
-               type: reqEvent.type,
-               from: reqEvent.from,
-               fromName: reqEvent.fromName,
-               notesToActor: reqEvent.notesToActor})
- 
-               })
-       
-          }
-      
-       
-          return {
-            documentId,
-            createdAt,
-            batchId: pdodocument.batchId,
-            createdOnBehalfOfName: pdodocument.createdOnBehalfOfName,
-            batchCompleted,
-            pendingRequiredEvents,
-            completedEvents
-          }
-
-
-    } else  if (fromCustomer=="true") {
-
-      const batchCompleted = pdoEvents.some(event => (event.lastInChain));
-      if (!batchCompleted) {
-        return {
-          success: false,
-          errors: ['batch not completed yet']
-        }
-      }
-
-      type EventWithStatus =   Partial<PDOEvent> & {licenseStatus:string};
-      const completedEventsWithStatus: EventWithStatus[] = [];
-      //validate vcs is pdoEvents and add status property
-      
-      await Promise.all(
-        pdoEvents.map(async event => {
-         // console.log('vc->'+event.vcJwt);
-          const response = await this.verifyVC(event.vcJwt);
-          const tempEvent = {...event, licenseStatus: response.status}; //add licenseStatus key
-          const  {vcJwt, ...newEvent} = tempEvent;  //remove vcJwt key
-          completedEventsWithStatus.push(newEvent)
-        }));
-      //return a formatted html page
-
-      return {
-        documentId,
-        createdAt,
-        batchId: pdodocument.batchId,
-        createdOnBehalfOfName: pdodocument.createdOnBehalfOfName,
-        batchCompleted,
-        completedEventsWithStatus
-      }
-
-
-    }
-
-    return    {
-      success: false,
-      errors: ['fromCustomer must be true or false']
+    return {
+      documentId,
+      kycMeta,
+      kycEvents,
+      createdAt,
+    
     }
 
   }
+
+
+  
 
   
     
@@ -2413,9 +2561,9 @@ console.log('decrypted key buffer->'+decryptedEncKey);
           items.map(async item => {
             
              if (this.isTnTdocument(productName,item.documentId)) {
-               const {pdodocument,requiredEvents, events, createdAt, } = await this.getDocument(item.documentId);
+               const {pdodocument,requiredEvents, events, createdAt, } = await this.getDocument2(item.documentId);
                if (pdodocument) {
-                const {pdoEvents,success} = await this.getEvents(item.documentId, events);
+                const {pdoEvents,success} = await this.getEvents2(item.documentId, events);
                 if (success) {
                 
                     newresults.push({

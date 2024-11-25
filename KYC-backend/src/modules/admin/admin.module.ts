@@ -12,6 +12,7 @@ import { UserService } from "../users/user.service.js";
 import { IssuedVC, IssuedVCSchema } from "../../shared/models/issuedvcs.model.js";
 import { Product, ProductSchema } from "../../shared/models/products.model.js";
 import { Bank, BanksSchema } from "../../shared/models/banks.model.js";
+import { Event, EventsSchema } from "../../shared/models/events.model.js";
 
 
 @Module({
@@ -24,6 +25,7 @@ import { Bank, BanksSchema } from "../../shared/models/banks.model.js";
     
       { name: Product.name, schema: ProductSchema },
       { name: Bank.name, schema: BanksSchema },
+      { name: Event.name, schema: EventsSchema },
      
     ]),
     UserModule,

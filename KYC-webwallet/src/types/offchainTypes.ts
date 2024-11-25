@@ -4,3 +4,11 @@ export type OffChainType = {
   documentId: string;
   offChainFilepath: string;
   };
+
+export type Bank = {
+
+   bankName: string;
+   bankDID: string;
+   bankUrl: string;
+
+}

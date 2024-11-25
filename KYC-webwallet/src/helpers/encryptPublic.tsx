@@ -33,30 +33,6 @@ export function toHexString(bytes: Uint8Array): string {
  }
 
 
-  // export async function generateEncKey(): Promise<string> {
-
-  //   const key = await window.crypto.subtle.generateKey(
-  //       {
-  //         name: "AES-GCM",
-  //         length: 256,
-          
-  //       },
-  //       true,
-  //       ["encrypt", "decrypt"],
-  //     );
-    
-  //     let exportedKey1 = await crypto.subtle.exportKey('raw', key);
-  
-  //     console.log('exportedkey buffer->'+exportedKey1);
-  //     const decoder = new TextDecoder();
-
-  //     const str = Buffer.from(exportedKey1).toString('binary');
-    
-  //     console.log('exportedkey decode->'+str);
-      
-
-  //   return str;
-  // }
 
   export async function generateEncKey(): Promise<CryptoKey> {
 
@@ -94,6 +70,23 @@ export function toHexString(bytes: Uint8Array): string {
 
     return hexkey;
   }
+
+  export async function hexStringToCrypto(keyhex:string): Promise<CryptoKey> {
+
+ 
+    const uint8Array = fromHexString(keyhex);
+    const docsDecryptionKey = await crypto.subtle.importKey(
+      "raw",
+      uint8Array,
+  
+      "AES-GCM",
+      true,
+      ["decrypt"]
+    );
+    
+
+  return docsDecryptionKey;
+}
 
 
   export async function encryptEncryptionKey(

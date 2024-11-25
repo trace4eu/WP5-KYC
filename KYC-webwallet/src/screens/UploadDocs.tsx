@@ -9,9 +9,7 @@ import {apiService} from '../index';
 import {EventDetailsOptionType, EventDetailsType, pendingTaskType} from '../types/pendingTaskType';
 import CircularProgress from '@mui/material/CircularProgress';
 import ErrorDownloadAlert from '../components/ErrorDownloadAlert';
-import TaskSelectionComponent from '../components/TaskSelectionComponent';
-import CredentialSaveOrShareOrDeleteAlert from '../components/CredentialSaveOrShareOrDeleteAlert';
-import EventDetailsModal from '../components/EventDetailsModal';
+
 import {cryptoKeyToHexString, generateEncKey} from '../helpers/encryptPublic'
 import { Hash } from '../helpers/tntUtil';
 import {OffChainType} from '../types/offchainTypes'

@@ -1,5 +1,6 @@
 import { OffChainType } from "../types/offchainTypes";
 import WalletModel from '../models/WalletModel';
+import { hexStringToCrypto } from "./encryptPublic";
 
 export function storeOffChainFile(storeFormatFile: OffChainType, walletModel: WalletModel) {
     const offchainFilesFromLocalStorage = walletModel?.getStoredOffChainFiles();
@@ -13,21 +14,57 @@ export function storeOffChainFile(storeFormatFile: OffChainType, walletModel: Wa
     walletModel?.storeOffChainFiles(JSON.stringify(offChainFiles));
   }
 
-  //to check and replace any existing vc
-  // with the same productName and allowedEvent as the new vc
+  
+export async function download(downloadfile: string, hexKey: string) {
+   
+  if (downloadfile) {
+    let result;
+    let data;
+    try {
+    result=await fetch(`http://localhost:3000/download?file=${downloadfile}`, );
+     
 
-//   export function updateVC(newVC: CredentialStoredType, walletModel: WalletModel) {
-//     const storedCredentials = walletModel?.getStoredCredentials() as CredentialStoredType[];
-//     const updatedCredentials = storedCredentials.map((vc) => {
-//       const details = vc.vcDetails as issuanceCertificateCardDetails;
-//       if (
-//         details.productName === (newVC.vcDetails as issuanceCertificateCardDetails).productName &&
-//         details.allowedEvent === (newVC.vcDetails as issuanceCertificateCardDetails).allowedEvent
-//       ) {
-//         // Replace the existing VC with newVC
-//         return newVC;
-//       }
-//       return vc;
-//     });
-//     walletModel?.storeVerifiedCredentials(JSON.stringify(updatedCredentials));
-//   }
+    } catch (error) {
+      console.log('fetch error->'+error);
+      return {error: 'download error'}
+    }
+
+    if (result && !result.ok) {
+     //console.log('fetch error->'+JSON.stringify(await result.json()));
+      return {error: JSON.stringify(await result.json())}
+    }
+    if (result && result.ok ) {
+    
+      console.log('starting decryption');
+      const enckey = await hexStringToCrypto(hexKey);
+      data = await result.arrayBuffer();
+      let cleartext;
+      const iv = Buffer.from("KYC-encryption");
+      const cipher = Buffer.from(data);
+      try {
+       cleartext = await crypto.subtle.decrypt(
+          { name: "AES-GCM", iv },
+          enckey,
+          cipher,
+        );
+        console.log('downloaded decrypted doc');
+      console.log('decrypted length->'+cleartext.byteLength);
+    //  console.log('decrypted->'+cleartext);
+      const a = document.createElement('a');
+      a.download = 'my-KYC-docs.pdf';
+ 
+      const blob = new Blob([cleartext],  {type : 'application/pdf'} );
+      a.href = URL.createObjectURL(blob);
+      a.click();
+     // URL.revokeObjectURL(fileDownloadUrl);
+     }   catch (err) {
+      console.log('decryption error->'+err);
+      return {error: 'decryption error'}
+    }
+  }  
+} else {
+  console.log('no file selected');
+  return {error: 'no file specified'}
+}
+}
+

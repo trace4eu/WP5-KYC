@@ -24,8 +24,8 @@ import {presentationSubmission} from '../../helpers/presentationSubmission';
 import getVerifiablePresentationJwt from '../../helpers/getVerifiablePresentationJwt';
 import { InitShareReq } from 'interfaces/utils.interface';
 
-axios.defaults.timeout = 25000;
-const abortTimeout = 25000;
+axios.defaults.timeout = 35000;
+const abortTimeout = 35000;
 
 interface ValidationError {
   message: string;
@@ -988,7 +988,7 @@ export default class ApiService {
     const config: AxiosRequestConfig = {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      url: `${bankUrl}/v3/tnt/init_KYC_share`,
+      url: `${bankUrl}/init_KYC_share`,
       data: initShareReq
     };
 

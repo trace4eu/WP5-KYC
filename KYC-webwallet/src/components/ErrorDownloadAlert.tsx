@@ -25,7 +25,7 @@ export default function ErrorDownloadAlert({message, isErrorWindow, onClose}: IP
   return (
     <Snackbar
       open={isErrorWindow}
-      autoHideDuration={3000}
+      autoHideDuration={4000}
       onClose={onClose}
       anchorOrigin={{
         vertical: 'top',
@@ -36,7 +36,6 @@ export default function ErrorDownloadAlert({message, isErrorWindow, onClose}: IP
       <Alert severity="error" onClose={onClose}>
         <AlertTitle sx={{width: '25vw', minWidth: 'fit-content'}}>{alertText}</AlertTitle>
 
-        <strong>Try again</strong>
       </Alert>
     </Snackbar>
   );

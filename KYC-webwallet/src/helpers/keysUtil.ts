@@ -11,6 +11,8 @@ import axios, { AxiosResponse } from "axios";
 import { z } from "zod";
 //import {JsonWebKey as JWK} from "crypto"
 import { JWK } from "./verifiablePresentation";
+import { CheckResult } from "./tntUtil";
+import { Bank } from "types/offchainTypes";
 
 window.Buffer = window.Buffer || require('buffer').Buffer;
 
@@ -232,14 +234,29 @@ export const jwksSchema = z.object({
   
   export type JWKS = z.infer<typeof jwksSchema>;
 
-export async function getBankJwk(jwks_uri:string) {
+export async function getBankJwkFromSenderDID(bankDID:string):Promise<CheckResult|JWK> {
 
-  
+   const banks = await getBanks() as Bank[];
+   const banksf = banks.filter((bank=> bank.bankDID == bankDID))
+   if (banksf.length == 0) {
+    return {success:false,errors:[`bank not found`]}
+   }
+   const bankurl = banksf[0].bankUrl;
+   return await getBankJwk(bankurl);
+
+}
+
+
+export async function getBankJwk(bankUrl:string):Promise<CheckResult|JWK> {
+
+    const jwks_uri=`${bankUrl}/jwks`.replace('tnt','auth')
+
     let clientJwksRequest: AxiosResponse;
     try {
       clientJwksRequest = await axios.get<unknown>(jwks_uri);
     } catch (e) {
-      throw new Error(`Can't get bank's JWKS ${e}`);
+      return {success:false,errors:[`Can't get bank's JWKS ${e}`]}
+     
     }
   
     // Validate JWKS
@@ -252,12 +269,62 @@ export async function getBankJwk(jwks_uri:string) {
             `[${issue.code}] in '${issue.path.join(".")}': ${issue.message}`
         )
         .join("\n");
-  
-        throw new Error(`invalid bank jwks: ${errorDesc}`);
+       
+        return {success:false,errors:[`invalid bank jwks: ${errorDesc}`]}
+        
     }
   
     const jwks = clientJwks.data;
-    return jwks.keys[0] as JWK;
+    if (!jwks.keys || !jwks.keys[0]) {
+      return {success:false,errors:[`jwks key not found`]}
+    }
+    console.log('bank-keys->'+JSON.stringify(jwks));
+    try {
+     const jwk = jwks.keys[0] as JWK
+     return jwk
+    } catch (e) {
+      return {success:false,errors:[`jwk conversion error`]}
+    }
+ 
 
 }
+
+export async function getBanks() {
+
+  
+  let response: AxiosResponse;
+  try {
+    response = await axios.get<unknown>(`${process.env.REACT_APP_CBC_URL}/banks`);
+  } catch (e) {
+    console.log(`Can't get banks ${e}`);
+    return []
+  }
+
+
+  return response.data
+
+}
+
+export async function add_bank_event(bankUrl:string, event: object):Promise<CheckResult> {
+
+  
+  let response: AxiosResponse;
+  try {
+    response = await axios.post(`${bankUrl}/add_event`,
+      event,
+     { headers: { 
+        'Content-Type': 'application/json'
+      }},
+      
+    );
+  } catch (e) {
+    console.log(`Can't add bank event ${e}`);
+    return {success:false, errors:[`Can't add bank event ${e}`]}
+  }
+
+
+  return response.data
+
+}
+
 

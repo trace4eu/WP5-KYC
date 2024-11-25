@@ -236,4 +236,17 @@ export interface BankInfo {
   };
 
 export type BanksInfo = BankInfo[];
+
+export type PersonalData = {
+  firstName: string;
+  lastName:string;
+  nationality:string;
+  birthDate:string;
+  personalId:string;
+  address:string;
+  salary:string;
+  employer:string;
+  telephone:string;
+  email:string;
+}
   

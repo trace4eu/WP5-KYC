@@ -38,6 +38,7 @@ import TnTqueryDto from "./dto/tntquery.dto.js";
 import TnTdocumentDto from "./dto/tntdocument.dto.js";
 import { walletdidDto } from "./dto/walletdid.dto.js";
 import DecryptDto, { MockDecryptDto } from "../admin/dto/decrypt.dto.js";
+import AddEvent, { AddEventDto } from "./dto/addEvent.dto.js";
 
 @Controller("/tnt")
 export class TnTController {
@@ -87,46 +88,46 @@ export class TnTController {
    }
 
    //remove this
-   @HttpCode(200)
-    @Post("/mock_decrypt_docs")
-   // @Header('Content-Type', 'application/octet-stream')
-    async mockDecryptDocs(
-      @Body() mockDecryptDto:MockDecryptDto
-    ): Promise<Buffer> {
+  //  @HttpCode(200)
+  //   @Post("/mock_decrypt_docs")
+  //  // @Header('Content-Type', 'application/octet-stream')
+  //   async mockDecryptDocs(
+  //     @Body() mockDecryptDto:MockDecryptDto
+  //   ): Promise<Buffer> {
 
-      const result= await this.tntService.adminMockDecryptDocs(mockDecryptDto);
+  //     const result= await this.tntService.adminMockDecryptDocs(mockDecryptDto);
      
-     if ('success' in result) {
-       let error;
-       if ('errors' in result) error = result.errors[0]; else error='no error description'
-       throw new OAuth2Error("invalid_request", {
-          errorDescription: error,
-        });
-      }
-      return result;
+  //    if ('success' in result) {
+  //      let error;
+  //      if ('errors' in result) error = result.errors[0]; else error='no error description'
+  //      throw new OAuth2Error("invalid_request", {
+  //         errorDescription: error,
+  //       });
+  //     }
+  //     return result;
     
-    }
+  //   }
 
       //remove this
-    @HttpCode(200)
-    @Post("/decrypt_docs")
-   // @Header('Content-Type', 'application/octet-stream')
-    async decryptDocs(
-      @Body() decryptDto:DecryptDto
-    ): Promise<Buffer> {
+  //   @HttpCode(200)
+  //   @Post("/decrypt_docs")
+  //  // @Header('Content-Type', 'application/octet-stream')
+  //   async decryptDocs(
+  //     @Body() decryptDto:DecryptDto
+  //   ): Promise<Buffer> {
       
-      const result= await this.tntService.adminDecryptDocs(decryptDto);
+  //     const result= await this.tntService.adminDecryptDocs(decryptDto);
      
-     if ('success' in result) {
-       let error;
-       if ('errors' in result) error = result.errors[0]; else error='no error description'
-       throw new OAuth2Error("invalid_request", {
-          errorDescription: error,
-        });
-      }
-      return result;
+  //    if ('success' in result) {
+  //      let error;
+  //      if ('errors' in result) error = result.errors[0]; else error='no error description'
+  //      throw new OAuth2Error("invalid_request", {
+  //         errorDescription: error,
+  //       });
+  //     }
+  //     return result;
     
-    }
+  //   }
 
 
 
@@ -150,7 +151,7 @@ export class TnTController {
     return this.tntService.postCredential(authorizationHeader, body);
   }
 
-
+  //used by bank and CBC admins
    @Get("/document")
    @HttpCode(200)
    async document(
@@ -167,7 +168,7 @@ export class TnTController {
   @Post("/init_KYC_share")
   async init_KYC_share(
     @Headers("content-type") contentType: string | undefined,
-  //  @Headers("authorization") authorizationHeader: string,
+  
     @Body() body: InitKYCShareDto
   ): Promise<CheckResult> {
     // Only accept application/json
@@ -182,6 +183,24 @@ export class TnTController {
     return await this.tntService.init_KYC_share( body);
   }
 
+  @HttpCode(201)
+  @Post("/add_event")
+  async add_event(
+    @Headers("content-type") contentType: string | undefined,
+  
+    @Body() body: AddEventDto
+  ): Promise<CheckResult> {
+    // Only accept application/json
+    
+    if (!contentType ||
+      !contentType.toLowerCase().includes("application/json")) {
+      throw new OAuth2Error("invalid_request", {
+        errorDescription: "Content-type must be application/json",
+      });
+    }
+
+    return await this.tntService.add_event( body);
+  }
 
    
    @HttpCode(200)

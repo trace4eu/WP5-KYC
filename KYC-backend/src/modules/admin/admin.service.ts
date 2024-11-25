@@ -40,8 +40,15 @@ import { Bank, BanksDocument } from "../../shared/models/banks.model.js";
 import { BadRequestError } from "@cef-ebsi/problem-details-errors";
 import ReqOnBoardDto from "./dto/reqonboard.dto.js";
 import { randomBytes } from "node:crypto";
-import { MockDecryptDto } from "./dto/decrypt.dto.js";
+import DecryptDto, { MockDecryptDto } from "./dto/decrypt.dto.js";
 import OAuth2Error from "../../shared/errors/OAuth2Error.js";
+import {Event, EventsDocument } from "../../shared/models/events.model.js";
+import { ReqEventsDto } from "./dto/reqevents.dto.js";
+import KYCVerifiedDto, { PersonalDataObject } from "./dto/kycverified.dto.js";
+import { kycverifiedSchema } from "./validators/kycVerified.validator.js";
+import { cryptoKeyToHexString, encryptEncryptionKey, generateEncKey } from "../tnt/utils/tntUtils.js";
+import crypto from "node:crypto";
+import { KYC_SHARED } from "../tnt/interfaces/utils.interface.js";
 
 
 
@@ -65,6 +72,7 @@ export class AdminService {
     
    @InjectModel(Product.name) private ProductModel: Model<ProductDocument>,
    @InjectModel(Bank.name) private BankModel: Model<BanksDocument>,
+   @InjectModel(Event.name) private eventModel: Model<EventsDocument>,
     
   ) {
     this.opMode = configService.get<string>("opMode");
@@ -151,6 +159,30 @@ export class AdminService {
 
   }
 
+  async localEvents(
+    reqEventsDto : ReqEventsDto
+  ): Promise<object> {
+
+    if (this.opMode !== "BANK") {
+      this.logger.error('only available to Banks');
+      throw new BadRequestError(
+       'only available to banks'
+      );
+     }
+
+  
+    const {status} = reqEventsDto
+
+    const data = await this.eventModel.find({status: status=='all' ? {$exists:true} : status}).exec();
+    if (!data || data.length == 0) {
+      return [];
+    }
+ 
+
+    return data;
+
+  }
+
   async mockDecryptDocs(
     mockDecryptDto : MockDecryptDto
   ): Promise<Buffer> {
@@ -175,6 +207,146 @@ export class AdminService {
      return result;
 
   }
+
+  async decryptDocs(
+    decryptDto : DecryptDto
+  ): Promise<Buffer> {
+
+    if (this.opMode !== "BANK") {
+      this.logger.error('only available to Banks');
+      throw new BadRequestError(
+       'only available to banks'
+      );
+     }
+
+     const {documentId, eventId} = decryptDto;
+
+     const {sender, kycEvent, success} = await this.tntService.getEvent(documentId, eventId);
+ 
+     //event sender is the wallet es256k did
+     //encryption was perfromed with es256 wallet private key. -> Need wallet es256 public key for decryption
+ 
+     if (!sender || !success) {
+      throw new OAuth2Error("invalid_request", {
+        errorDescription: 'could not get event data',
+      });
+     }
+ 
+     if (kycEvent.eventType != "KYC_docs_shared") {
+ 
+      throw new OAuth2Error("invalid_request", {
+        errorDescription: `invalid event type -> ${kycEvent.eventType}`,
+      });
+      
+     }
+ 
+    
+ 
+     const kycSharedEvent = kycEvent as KYC_SHARED;
+ 
+     if (!kycSharedEvent.encryptedEncryptionKey) {
+
+      throw new OAuth2Error("invalid_request", {
+        errorDescription: `encr encr key is missing from event`,
+      });
+      
+  
+     }
+ 
+     if (!kycSharedEvent.offchainFilepath) {
+      throw new OAuth2Error("invalid_request", {
+        errorDescription: `offchain file path is missing from event`,
+      });
+      
+  
+     }
+ 
+
+    const result= await this.tntService.adminDecryptDocs(kycSharedEvent, eventId);
+     
+    if ('success' in result) {
+      let error;
+      if ('errors' in result) error = result.errors[0]; else error='no error description'
+      throw new OAuth2Error("invalid_request", {
+         errorDescription: error,
+       });
+     }
+     return result;
+
+  }
+
+  async kyc_verified(
+    kycVerifiedDto : KYCVerifiedDto
+  ): Promise<CheckResult> {
+
+    if (this.opMode !== "BANK") {
+      this.logger.error('only available to Banks');
+      throw new BadRequestError(
+       'only available to banks'
+      );
+     }
+
+    
+    const rawpersonalData = kycverifiedSchema.safeParse(kycVerifiedDto.personalData);
+  
+    if (!rawpersonalData.success) {
+      const errorDesc = rawpersonalData.error.issues
+        .map(
+          (issue) =>
+            `${issue.message}`
+        )
+        .join("\n");
+
+        return{
+          success:false,
+          errors:[`${errorDesc}`]
+        }
+    }
+
+    const personalData = rawpersonalData.data;
+    console.log('personalData->'+JSON.stringify(personalData));
+
+    const {documentId,eventId, customerName} = kycVerifiedDto;
+    const {kycMeta} = await this.tntService.getDocument(documentId);
+   
+
+    if (!kycMeta) 
+      return {
+          success:false,
+          errors:['error getting kyc document']
+      }
+
+      const {sender, kycEvent, success} = await this.tntService.getEvent(documentId, eventId);
+
+  
+      if (!sender || !success) {
+        return {
+          success: false,
+          errors: [
+            'could not get event data'
+          ],
+        };
+      }
+  
+      if (kycEvent.eventType != "KYC_docs_shared") {
+  
+        return {
+          success: false,
+          errors: [
+            `invalid event type -> ${kycEvent.eventType}`
+          ],
+        };
+      }
+
+     console.log('kycevents->'+JSON.stringify(kycEvent));
+   
+      //check if I have write access to documentId
+
+     return this.tntService.adminAddVerifiedEvent(documentId,kycEvent as KYC_SHARED, personalData, customerName );
+
+   
+
+    }
 
 
 

@@ -51,7 +51,7 @@ const WalletBar = ({open, handleDrawerOpen}: IWalletBarProps) => {
     return (
       <>
         <Typography key="legalName">
-          <span style={{color: '#ffad2d', fontWeight: 'bold', fontSize:'larger'}}>{name}</span>
+          <span style={{color: '#ffad2d', fontWeight: 'bold', fontSize:'x-large'}}>{name}</span>
           
         </Typography>
        

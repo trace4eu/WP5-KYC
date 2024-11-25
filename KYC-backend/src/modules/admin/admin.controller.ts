@@ -5,13 +5,12 @@ import paginateDto, { paginateActorsDto, ProductsDto } from "./dto/paginate.dto.
 import pkg  from "jsonwebtoken";
 import { hash } from "bcrypt";
 import { UserService } from "../users/user.service.js";
-import issueVCDto from "./dto/issuevc.dto.js";
-import OAuth2Error from "../../shared/errors/OAuth2Error.js";
-import NewProductDto from "./dto/newproduct.dto.js";
-import EventDetailsDto from "./dto/eventdetails.dto.js";
+
 import { walletdidDto } from "../tnt/dto/walletdid.dto.js";
 import ReqOnBoardDto from "./dto/reqonboard.dto.js";
-import { MockDecryptDto } from "./dto/decrypt.dto.js";
+import DecryptDto, { MockDecryptDto } from "./dto/decrypt.dto.js";
+import  { ReqEventsDto } from "./dto/reqevents.dto.js";
+import KYCVerifiedDto from "./dto/kycverified.dto.js";
 
 
 const { sign } = pkg;
@@ -60,26 +59,44 @@ export class AdminController {
       return await this.adminService.mockDecryptDocs(mockDecryptDto);
     }
 
+    @HttpCode(200)
+    @Post("/decrypt_docs")
+   // @Header('Content-Type', 'application/octet-stream')
+    async decryptDocs(
+      @Body() decryptDto:DecryptDto
+    ): Promise<Buffer> {
+      
+      return await this.adminService.decryptDocs(decryptDto);
+    
+    }
+
+    @HttpCode(200)
+    @Post("/kyc_verified")
+   // @Header('Content-Type', 'application/octet-stream')
+    async kyc_verified(
+      @Body() kycVerified:KYCVerifiedDto
+    ): Promise<CheckResult> {
+      
+     
+     // return {success:true}
+     return await this.adminService.kyc_verified(kycVerified);
+    
+    }
+
+
+    
+  //called from bank admin to get events submitted by wallets to local events db
+  @HttpCode(200)
+  @Get("/events")
+  async events(
+    @Query() reqEventsDto:ReqEventsDto
+  ): Promise<object> {
+    return await this.adminService.localEvents(reqEventsDto);
+  }
+
  
 
-     @HttpCode(200)
-     @Patch("/eventDetails")
-     async eventDetails(
-       @Headers("content-type") contentType: string | undefined,
-     //  @Headers("authorization") authorizationHeader: string,
-       @Body() body: EventDetailsDto
-     ): Promise<CheckResult> {
-       // Only accept application/json
-       // https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0-11.html#section-7.2
-       if (!contentType ||
-         !contentType.toLowerCase().includes("application/json")) {
-         throw new OAuth2Error("invalid_request", {
-           errorDescription: "Content-type must be application/json",
-         });
-       }
-   
-       return await this.adminService.eventDetails( body);
-     }
+
 
 
 

@@ -61,10 +61,15 @@ export interface PDOEvent {
   createdAt: string;
 }
 
+
+
 export interface KYCEvent_CORE  {
+  sender:string;
+  externalHash: string;
   eventType: EventType;
+  eventId: string;
   es256Did?:string|undefined;
-  createdAt?: string;
+  createdAt: string;
   
 }
 
@@ -78,7 +83,7 @@ export interface KYC_SHARED extends KYCEvent_CORE {
 export interface KYC_VERIFIED extends KYCEvent_CORE {
   verifiedBy: string;
   encryptedEncryptionKey: string;
-  encryptedPersonalData: object;
+  encryptedPersonalData: string;
 }
 
 export interface KYC_PERSONAL_SHARED extends KYCEvent_CORE {
@@ -100,6 +105,7 @@ export interface InitShareReq {
 }
 
 export interface TnTEvent {
+  externalHash:string;
   sender: string;
   metadata: string;
   timestamp: TnTtimestamp;

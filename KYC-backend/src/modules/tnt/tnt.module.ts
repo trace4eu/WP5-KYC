@@ -4,17 +4,16 @@ import { ConfigService } from "@nestjs/config";
 import { ApiConfigModule } from "../../config/configuration.js";
 import { TnTController } from "./tnt.controller.js";
 import { TntService } from "./tnt.service.js";
-import { DataStoreModule } from "../data-store/data-store.module.js";
-import { LogsModule } from "../logs/logs.module.js";
+
 import { EbsiModule } from "../ebsi/ebsi.module.js";
 
 
 import { MongooseModule } from "@nestjs/mongoose";
-import { IssuedVC, IssuedVCSchema } from "../../shared/models/issuedvcs.model.js";
-import { RevList, RevListSchema } from "../../shared/models/revList.model.js";
+
 import { CacheManagerOptions, CacheModule } from "@nestjs/cache-manager";
-import { Product, ProductSchema } from "../../shared/models/products.model.js";
+
 import { Bank, BanksSchema } from "../../shared/models/banks.model.js";
+import { Event,EventsSchema } from "../../shared/models/events.model.js";
 
 export const cacheConfig: CacheManagerOptions = {
   ttl: 0,
@@ -32,6 +31,7 @@ export const cacheConfig: CacheManagerOptions = {
     MongooseModule.forFeature([
    
       { name: Bank.name, schema: BanksSchema},
+      { name: Event.name, schema: EventsSchema},
    
     ]),
     CacheModule.register(cacheConfig),
