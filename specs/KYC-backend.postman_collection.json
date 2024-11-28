@@ -1,0 +1,802 @@
+{
+	"info": {
+		"_postman_id": "1c5bb83e-e783-45d1-8aab-ba40bf78035c",
+		"name": "KYC-backend",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "16995080",
+		"_collection_link": "https://speeding-meadow-717840.postman.co/workspace/TRACE4EU~a55c6245-664c-49fe-af4a-686f8ac2dd5c/collection/16995080-1c5bb83e-e783-45d1-8aab-ba40bf78035c?action=share&source=collection_link&creator=16995080"
+	},
+	"item": [
+		{
+			"name": "admin",
+			"item": [
+				{
+					"name": "signup",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/x-www-form-urlencoded",
+								"type": "text",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "nickname",
+									"value": "admin",
+									"type": "text"
+								},
+								{
+									"key": "email",
+									"value": "admin@gmail.com",
+									"type": "text"
+								},
+								{
+									"key": "password",
+									"value": "123456",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{backendUrl}}/v3/uauth/sign-up",
+							"host": [
+								"{{backendUrl}}"
+							],
+							"path": [
+								"v3",
+								"uauth",
+								"sign-up"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = JSON.parse(responseBody);\r",
+									"pm.environment.set(\"token\", jsonData.token);"
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/x-www-form-urlencoded",
+								"type": "text",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "email",
+									"value": "admin@gmail.com",
+									"type": "text"
+								},
+								{
+									"key": "password",
+									"value": "123456",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{backendUrl}}/v3/uauth/login",
+							"host": [
+								"{{backendUrl}}"
+							],
+							"path": [
+								"v3",
+								"uauth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "logout",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{backendUrl}}/v3/uauth/logout?email=yiorgosc@gmail.com",
+							"host": [
+								"{{backendUrl}}"
+							],
+							"path": [
+								"v3",
+								"uauth",
+								"logout"
+							],
+							"query": [
+								{
+									"key": "email",
+									"value": "yiorgosc@gmail.com"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "changepwd",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "newpwd",
+									"value": "234567",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{backendUrl}}/v3/admin/changepwd",
+							"host": [
+								"{{backendUrl}}"
+							],
+							"path": [
+								"v3",
+								"admin",
+								"changepwd"
+							],
+							"query": [
+								{
+									"key": "newpwd",
+									"value": "234567",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "newWallet",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{backendUrl}}/v3/admin/newwallet",
+							"host": [
+								"{{backendUrl}}"
+							],
+							"path": [
+								"v3",
+								"admin",
+								"newwallet"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "walletCap",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{backendUrl}}/v3/admin/walletcab",
+							"host": [
+								"{{backendUrl}}"
+							],
+							"path": [
+								"v3",
+								"admin",
+								"walletcab"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "genPin",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{backendUrl}}/v3/admin/genPin?walletDID=did:ebsi:zg4w51ujVxcVbok59meAUhK",
+							"host": [
+								"{{backendUrl}}"
+							],
+							"path": [
+								"v3",
+								"admin",
+								"genPin"
+							],
+							"query": [
+								{
+									"key": "walletDID",
+									"value": "did:ebsi:zg4w51ujVxcVbok59meAUhK"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "reqOnBoard",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{backendUrl}}/v3/admin/reqOnBoard?CBCurl=http://127.1.1.0:7001/v3/tnt/getOnBoard&pin=818082",
+							"host": [
+								"{{backendUrl}}"
+							],
+							"path": [
+								"v3",
+								"admin",
+								"reqOnBoard"
+							],
+							"query": [
+								{
+									"key": "CBCurl",
+									"value": "http://127.1.1.0:7001/v3/tnt/getOnBoard"
+								},
+								{
+									"key": "pin",
+									"value": "818082"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "events",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{backendUrl}}/v3/admin/events?status=pending",
+							"host": [
+								"{{backendUrl}}"
+							],
+							"path": [
+								"v3",
+								"admin",
+								"events"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "pending"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "decryptdoc",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"documentId\": \"0x3ca0e6ad8b24fceab642230b6415cede4bae780fd64d4780647abe9daa37a6e6\",\r\n    \"eventId\":\"0x7ce299301c070070efb37324ed675b8e3d648d256aed95ed4b0f39d2953b6886\"\r\n   \r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{backendUrl}}/v3/admin/decrypt_docs",
+							"host": [
+								"{{backendUrl}}"
+							],
+							"path": [
+								"v3",
+								"admin",
+								"decrypt_docs"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "kyc_verify",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"documentId\": \"0x7fb1e762dd11bd805c8cd7ba9cf274b8a77f56a9cbea307769a7f1acc660dbfc\",\r\n    \"eventId\": \"0x7eac91a4cec99538400d46e6a2c5bf6e6fd2902e51d8bc2e8fb6d78a0045f497\",\r\n    \"personalData\":{\r\n        \"firstName\": \"yiorgos\",\r\n        \"lastName\": \"constantinou\",\r\n        \"nationality\":\"cypriot\",\r\n        \"salary\": \"110k\",\r\n        \"address\": \"6 panagron street, Nicosia, cyprus\"\r\n    },\r\n    \"customerName\": \"yiorgos const\"\r\n   \r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{backendUrl}}/v3/admin/kyc_verify",
+							"host": [
+								"{{backendUrl}}"
+							],
+							"path": [
+								"v3",
+								"admin",
+								"kyc_verify"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "decrypt_personal_data",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"documentId\": \"0xa457c457456e189cd77291b40f36cef7d020913a5941c04a80889b7213371f2b\",\r\n    \"eventId\":\"0xb53aef7772d3d9c89142424bbc97836adbfa8e27d384cb27317feff5faea7982\"\r\n   \r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{backendUrl}}/v3/admin/decrypt_personal_data",
+							"host": [
+								"{{backendUrl}}"
+							],
+							"path": [
+								"v3",
+								"admin",
+								"decrypt_personal_data"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "APIs available with an access token"
+		},
+		{
+			"name": "public",
+			"item": [
+				{
+					"name": "getOnBoard",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{backendUrl}}/v3/tnt/getOnBoard?walletDID=did:key:zBhBLmYmyihtomRdJJNEKzbPj51o4a3GYFeZoRHSABKUwqdjiQPY2g3mGSNj8hkg1897eBinpqHQNw9rVh69CvC95SkUnkND2TqP6RXr8vNjiESUmAwXY81BRB4LSZJ2Dg1Ud7PF8X5n8ZTbreoFdZkGvhi6AbboYgFzue9QCR8QSP27UmV5YxC",
+							"host": [
+								"{{backendUrl}}"
+							],
+							"path": [
+								"v3",
+								"tnt",
+								"getOnBoard"
+							],
+							"query": [
+								{
+									"key": "walletDID",
+									"value": "did:key:zBhBLmYmyihtomRdJJNEKzbPj51o4a3GYFeZoRHSABKUwqdjiQPY2g3mGSNj8hkg1897eBinpqHQNw9rVh69CvC95SkUnkND2TqP6RXr8vNjiESUmAwXY81BRB4LSZJ2Dg1Ud7PF8X5n8ZTbreoFdZkGvhi6AbboYgFzue9QCR8QSP27UmV5YxC"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = JSON.parse(responseBody);\r",
+									"pm.environment.set(\"access_token\", jsonData.access_token);"
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "grant_type",
+									"value": "urn:ietf:params:oauth:grant-type:pre-authorized_code",
+									"type": "text"
+								},
+								{
+									"key": "pre-authorized_code",
+									"value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6IldpSS1GaUlOUTNkdW5naHhGM3QtYnRQd0pWTVRCREY5MVFhaHBPT3doZHMifQ.eyJjbGllbnRfaWQiOiJkaWQ6a2V5OnpCaEJMbVlteWlodG9tUmRKSk5FS3piUGo1MW80YTNHWUZlWm9SSFNBQktVd3FkamlRUFkyZzNtR1NOajhoa2cxODk3ZUJpbnBxSFFOdzlyVmg2OUN2Qzk1U2tVbmtORDJUcVA2UlhyOHZOamlFU1VtQXdYWTgxQlJCNExTWkoyRGcxVWQ3UEY4WDVuOFpUYnJlb0ZkWmtHdmhpNkFiYm9ZZ0Z6dWU5UUNSOFFTUDI3VW1WNVl4QyIsImF1dGhvcml6YXRpb25fZGV0YWlscyI6W3sidHlwZSI6Im9wZW5pZF9jcmVkZW50aWFsIiwiZm9ybWF0Ijoiand0X3ZjIiwibG9jYXRpb25zIjpbImh0dHA6Ly8xOTIuMTY4LjEuNjo3MDAxL3YzL3RudCJdLCJ0eXBlcyI6WyJWZXJpZmlhYmxlQ3JlZGVudGlhbCIsIlZlcmlmaWFibGVBdHRlc3RhdGlvbiIsIlZlcmlmaWFibGVBdXRob3Jpc2F0aW9uVG9PbmJvYXJkIl19XSwiaWF0IjoxNzMwNjQzNTgyLCJleHAiOjE3MzA2NDM4ODIsImlzcyI6Imh0dHA6Ly8xOTIuMTY4LjEuNjo3MDAxL3YzL3RudCIsImF1ZCI6Imh0dHA6Ly8xOTIuMTY4LjEuNjo3MDAxL3YzL2F1dGgiLCJzdWIiOiJkaWQ6a2V5OnpCaEJMbVlteWlodG9tUmRKSk5FS3piUGo1MW80YTNHWUZlWm9SSFNBQktVd3FkamlRUFkyZzNtR1NOajhoa2cxODk3ZUJpbnBxSFFOdzlyVmg2OUN2Qzk1U2tVbmtORDJUcVA2UlhyOHZOamlFU1VtQXdYWTgxQlJCNExTWkoyRGcxVWQ3UEY4WDVuOFpUYnJlb0ZkWmtHdmhpNkFiYm9ZZ0Z6dWU5UUNSOFFTUDI3VW1WNVl4QyJ9.SPWY8k5qrzbQ1zGhdR9ysg5Hd0KE1IBystqFGpOIuFGHOSG5w8mtTy4mGavVjBz2h7hF5XeRDQvmOqMGvZRroQ",
+									"description": "{\"client_id\": \"did:key:zBhBLmYmyihtomRdJJNEKzbPj51o4a3GYFeZoRHSABKUwqdjiQPY2g3mGSNj8hkg1897eBinpqHQNw9rVh69CvC95SkUnkND2TqP6RXr8vNjiESUmAwXY81BRB4LSZJ2Dg1Ud7PF8X5n8ZTbreoFdZkGvhi6AbboYgFzue9QCR8QSP27UmV5YxC\",\n  \"authorization_details\": [\n    {\n      \"type\": \"openid_credential\",\n      \"format\": \"jwt_vc\",\n      \"locations\": [\n        \"http://192.168.1.6:6001/v3/tnt\"\n      ],\n      \"types\": [\n        \"VerifiableCredential\",\n        \"VerifiableAttestation\",\n        \"CitizenId\"\n      ]\n    }\n  ],\n  \"iat\": 1729489469,\n  \"exp\": 1729490669,\n  \"iss\": \"http://192.168.1.6:6001/v3/tnt\",\n  \"aud\": \"http://192.168.1.6:6001/v3/auth\",\n  \"sub\": \"did:key:zBhBLmYmyihtomRdJJNEKzbPj51o4a3GYFeZoRHSABKUwqdjiQPY2g3mGSNj8hkg1897eBinpqHQNw9rVh69CvC95SkUnkND2TqP6RXr8vNjiESUmAwXY81BRB4LSZJ2Dg1Ud7PF8X5n8ZTbreoFdZkGvhi6AbboYgFzue9QCR8QSP27UmV5YxC\"\n}",
+									"type": "text"
+								},
+								{
+									"key": "user_pin",
+									"value": "346805",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{backendUrl}}/v3/auth/token",
+							"host": [
+								"{{backendUrl}}"
+							],
+							"path": [
+								"v3",
+								"auth",
+								"token"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "credential",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"types\": [\r\n        \"VerifiableCredential\",\r\n        \"VerifiableAttestation\",\r\n        \"LicenseToOperate\"\r\n    ],\r\n    \"format\": \"jwt_vc\",\r\n    \"proof\": {\r\n        \"proof_type\": \"jwt\",\r\n        \"jwt\": \"eyJ0eXAiOiJvcGVuaWQ0dmNpLXByb29mK2p3dCIsImFsZyI6IkVTMjU2Iiwia2lkIjoiZGlkOmtleTp6MmRtekQ4MWNnUHg4VmtpN0pidXVNbUZZcldQZ1lveXR5a1VaM2V5cWh0MWo5S2J0MU5ZMTZTdlJBYjFVV1NFcWRRSFc0SGhKeUhqVUdMU1NWMzhXV1VZbWRxQlRWUFoyNmVGdnp4RlJld0s5S0NFa01BMVQ3azhFcUJMUHJCWEtScFVSbVJTNzRqZW9TVHdjRXlRcjR2N0hhQkU3blBVU2U1Qng5UkM5alZjUDZhWWQyI3oyZG16RDgxY2dQeDhWa2k3SmJ1dU1tRllyV1BnWW95dHlrVVozZXlxaHQxajlLYnQxTlkxNlN2UkFiMVVXU0VxZFFIVzRIaEp5SGpVR0xTU1YzOFdXVVltZHFCVFZQWjI2ZUZ2enhGUmV3SzlLQ0VrTUExVDdrOEVxQkxQckJYS1JwVVJtUlM3NGplb1NUd2NFeVFyNHY3SGFCRTduUFVTZTVCeDlSQzlqVmNQNmFZZDIifQ.eyJpc3MiOiJkaWQ6a2V5OnoyZG16RDgxY2dQeDhWa2k3SmJ1dU1tRllyV1BnWW95dHlrVVozZXlxaHQxajlLYnQxTlkxNlN2UkFiMVVXU0VxZFFIVzRIaEp5SGpVR0xTU1YzOFdXVVltZHFCVFZQWjI2ZUZ2enhGUmV3SzlLQ0VrTUExVDdrOEVxQkxQckJYS1JwVVJtUlM3NGplb1NUd2NFeVFyNHY3SGFCRTduUFVTZTVCeDlSQzlqVmNQNmFZZDIiLCJub25jZSI6IjQzZTlmOTVkLTU1NGEtNGI1Zi05NDY0LTlkMWU5ZWFiODQ3NSIsImlhdCI6MTY4NTM0MzA0Mzc5ODg2NiwiYXVkIjoiaHR0cDovLzE5Mi4xNjguMC4yMDozMDA1L3YzL2lzc3VlciJ9.DeAZVTUeNfRTY-DNmrpAWSdIsjqVbWKugqT6a3vp28eKL1wa6ELTZjNvS0r_Bs9z2FTTzJcTq1a1QCM8pw-MFg\"\r\n    }\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{backendUrl}}/v3/tnt/credential",
+							"host": [
+								"{{backendUrl}}"
+							],
+							"path": [
+								"v3",
+								"tnt",
+								"credential"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "banks",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{backendUrl}}/v3/tnt/banks",
+							"host": [
+								"{{backendUrl}}"
+							],
+							"path": [
+								"v3",
+								"tnt",
+								"banks"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "document",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{backendUrl}}/v3/tnt/document?documentId=0xa035d20d8fb1986b5a35917b6384661b93553959bd741709c1568fbe67518b40",
+							"host": [
+								"{{backendUrl}}"
+							],
+							"path": [
+								"v3",
+								"tnt",
+								"document"
+							],
+							"query": [
+								{
+									"key": "documentId",
+									"value": "0xa035d20d8fb1986b5a35917b6384661b93553959bd741709c1568fbe67518b40"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "verifyVC",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n   \"jwtvc\": \"eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImRpZDplYnNpOnpvTDdtQkhIUW8yZ1dEVnoxWEpQZ1AzI1dpSS1GaUlOUTNkdW5naHhGM3QtYnRQd0pWTVRCREY5MVFhaHBPT3doZHMifQ.eyJqdGkiOiJ2YzpjeWVic2k6NzM5NmQ0YjktZjAzZC00MDdmLTg1NjEtOGIzNDY1NjgzN2VjIiwic3ViIjoiZGlkOmVic2k6emc0dzUxdWpWeGNWYm9rNTltZUFVaEsiLCJpc3MiOiJkaWQ6ZWJzaTp6b0w3bUJISFFvMmdXRFZ6MVhKUGdQMyIsIm5iZiI6MTczMDg3ODE2MSwiZXhwIjoxNzMwODc4NDAxLCJpYXQiOjE3MzA4NzgxNjEsInZjIjp7IkBjb250ZXh0IjpbImh0dHBzOi8vd3d3LnczLm9yZy8yMDE4L2NyZWRlbnRpYWxzL3YxIl0sImlkIjoidmM6Y3llYnNpOjczOTZkNGI5LWYwM2QtNDA3Zi04NTYxLThiMzQ2NTY4MzdlYyIsInR5cGUiOlsiVmVyaWZpYWJsZUNyZWRlbnRpYWwiLCJWZXJpZmlhYmxlQXR0ZXN0YXRpb24iLCJWZXJpZmlhYmxlQXV0aG9yaXNhdGlvblRvT25ib2FyZCJdLCJpc3N1ZXIiOnsiaWQiOiJkaWQ6ZWJzaTp6b0w3bUJISFFvMmdXRFZ6MVhKUGdQMyIsImxlZ2FsTmFtZSI6IkNlbnRyYWwgQmFuayBPZiBDeXBydXMifSwiaXNzdWFuY2VEYXRlIjoiMjAyNC0xMS0wNlQwNzoyOToyMVoiLCJpc3N1ZWQiOiIyMDI0LTExLTA2VDA3OjI5OjIxWiIsInZhbGlkRnJvbSI6IjIwMjQtMTEtMDZUMDc6Mjk6MjFaIiwiZXhwaXJhdGlvbkRhdGUiOiIyMDI0LTExLTA2VDA3OjMzOjIxWiIsImNyZWRlbnRpYWxTdWJqZWN0Ijp7ImlkIjoiZGlkOmVic2k6emc0dzUxdWpWeGNWYm9rNTltZUFVaEsiLCJhY2NyZWRpdGVkRm9yIjpbXX0sImNyZWRlbnRpYWxTY2hlbWEiOnsiaWQiOiJodHRwczovL2FwaS1waWxvdC5lYnNpLmV1L3RydXN0ZWQtc2NoZW1hcy1yZWdpc3RyeS92My9zY2hlbWFzLzB4MjI2OTFmOWQxMTJmNDIxM2I3MTdhNmQ5NTRjMGZlNGE3ZDJkYmJiMTgzOWEzMWMyOWI0OGEzNWZkYTM2YjEzZiIsInR5cGUiOiJGdWxsSnNvblNjaGVtYVZhbGlkYXRvcjIwMjEifSwidGVybXNPZlVzZSI6eyJpZCI6Imh0dHBzOi8vYXBpLXBpbG90LmVic2kuZXUvdHJ1c3RlZC1pc3N1ZXJzLXJlZ2lzdHJ5L3Y1L2lzc3VlcnMvZGlkOmVic2k6em9MN21CSEhRbzJnV0RWejFYSlBnUDMvYXR0cmlidXRlcy8wYzljZThkMDVhMGU2YmZkMDQxYTA0NWFmYjZjZDRhZWU1ZTI0YWQ2MzEyM2E3OTY1NDBkOGI2NjFkN2Q4YjI2IiwidHlwZSI6Iklzc3VhbmNlQ2VydGlmaWNhdGUifX19.P9_m9Z4HZzIGZ-AR95SHEEr2RxdDk3HY1n6t_4ievvNm2gGmL5upNGXlQ8Jo0bt_M2vhhaVQlrZ9rtAcwXVjnw\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{backendUrl}}/v3/tnt/verifyVC",
+							"host": [
+								"{{backendUrl}}"
+							],
+							"path": [
+								"v3",
+								"tnt",
+								"verifyVC"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "init_KYC_share",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n \"documentHash\": \"0xab4de88643cc9bbcca96164f4c1a65f00c7e55123128d458387a44fc58f9e163\",\r\n \"didKey\": \"did:key:zBhBLmYmyihtomRdJJNEKzbPj51o4a3GYFeZoRHSABKUwqdjiQPY2g3mGSNj8hkg1897eBinpqHQNw9rVh69CvC95SkUnkND2TqP6RXr8vNjiESUmAwXY81BRB4LSZJ2Dg1Ud7PF8X5n8ZTbreoFdZkGvhi6AbboYgFzue9QCR8QSP27UmV5YxC\",\r\n \"customerName\": \"yiorgos\",\r\n \"vp_token\": \"gggg\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{backendUrl}}/v3/tnt/init_KYC_share",
+							"host": [
+								"{{backendUrl}}"
+							],
+							"path": [
+								"v3",
+								"tnt",
+								"init_KYC_share"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "add_event",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n \"documentId\": \"0xab4de88643cc9bbcca96164f4c1a65f00c7e55123128d458387a44fc58f9e163\",\r\n \"eventId\":\"TbreoFdZkGvhi6AbboYgFzue9QCR8QSP27UmV5YxC\",\r\n \"eventType\":\"KYC_docs_shared\",\r\n \"customerName\": \"yiorgos\"\r\n \r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{backendUrl}}/v3/tnt/add_event",
+							"host": [
+								"{{backendUrl}}"
+							],
+							"path": [
+								"v3",
+								"tnt",
+								"add_event"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "meta-tnt",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{backendUrl}}/v3/tnt/.well-known/openid-credential-issuer",
+							"host": [
+								"{{backendUrl}}"
+							],
+							"path": [
+								"v3",
+								"tnt",
+								".well-known",
+								"openid-credential-issuer"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "meta-auth",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{backendUrl}}/v3/auth/.well-known/openid-configuration",
+							"host": [
+								"{{backendUrl}}"
+							],
+							"path": [
+								"v3",
+								"auth",
+								".well-known",
+								"openid-configuration"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "jwks",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{backendUrl}}/v3/auth/jwks",
+							"host": [
+								"{{backendUrl}}"
+							],
+							"path": [
+								"v3",
+								"auth",
+								"jwks"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "publicly available APIS"
+		}
+	]
+}
