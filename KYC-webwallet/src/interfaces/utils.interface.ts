@@ -70,6 +70,7 @@ export interface KYCEvent_CORE  {
   eventId: string;
   es256Did?:string|undefined;
   createdAt: string;
+  tntId: string;
   
 }
 

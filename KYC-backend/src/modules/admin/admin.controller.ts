@@ -71,7 +71,17 @@ export class AdminController {
     }
 
     @HttpCode(200)
-    @Post("/kyc_verified")
+    @Post("/decrypt_personal_data")
+    async decryptPersonalData(
+      @Body() decryptPersonalDataDto:DecryptDto
+    ): Promise<object> {
+      
+      return await this.adminService.decryptPersonalData(decryptPersonalDataDto);
+    
+    }
+
+    @HttpCode(200)
+    @Post("/kyc_verify")
    // @Header('Content-Type', 'application/octet-stream')
     async kyc_verified(
       @Body() kycVerified:KYCVerifiedDto

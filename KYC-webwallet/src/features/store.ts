@@ -2,14 +2,14 @@ import {configureStore} from '@reduxjs/toolkit';
 import logger from 'redux-logger';
 import {apiSlice} from './api/apiSliceRTKQuery';
 import credentialsReducer from './credentialSlice';
-import offerPayloadReducer from './offerPayloadSlice';
+
 
 const preloadedState = {};
 
 export const store = configureStore({
   reducer: {
     credentials: credentialsReducer,
-    offerPayload: offerPayloadReducer,
+   // offerPayload: offerPayloadReducer,
     [apiSlice.reducerPath]: apiSlice.reducer,
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(apiSlice.middleware as any, logger),

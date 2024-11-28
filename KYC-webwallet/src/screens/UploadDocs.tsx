@@ -14,6 +14,8 @@ import {cryptoKeyToHexString, generateEncKey} from '../helpers/encryptPublic'
 import { Hash } from '../helpers/tntUtil';
 import {OffChainType} from '../types/offchainTypes'
 import {storeOffChainFile} from '../helpers/offChainFiles'
+import { Button } from '@mui/material';
+import SuccessAlert from '../components/SuccessAlert';
 
 interface PropsPendingTasks {
   walletModel: WalletModel;
@@ -28,6 +30,8 @@ const UploadDocs = ({walletModel}: PropsPendingTasks) => {
   const [file, setFile] = useState<File>()
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
+  
   const [tasks, setTasks] = useState<pendingTaskType[] | null>(null);
   const [selectedTask, setSelectedTask] = useState<pendingTaskType | null>(null);
   const [isEventDetails, setIsEventDetails] = useState(false);
@@ -41,10 +45,15 @@ const UploadDocs = ({walletModel}: PropsPendingTasks) => {
 
   const upload = async () => {
 
-   
+    if (!file) {
+      setError('file was not selected');
+      return
+    }
     console.log('file to upload->'+file?.name);
  
-    if (file) {
+   
+    setLoading(true);
+
     const arrayBuffer = await file.arrayBuffer()
     
     const fileBuffer = Buffer.from(arrayBuffer)
@@ -96,85 +105,21 @@ const UploadDocs = ({walletModel}: PropsPendingTasks) => {
 
     } catch (err) {
         console.log('axios error->'+err);
+        setError('error uploading file');
+        setLoading(false)
+        setFile(undefined)
+        return
     }
 
-    }
+    setLoading(false);
+    setFile(undefined);
+    setSuccess('file uploaded succesfully');
+    
 
   }
 
-  const getPendingTasks = async () => {
-    if (eventDetails) setEventDetails(null);
-    if (tasks) setTasks(null);
-    if (selectedTask) setSelectedTask(null);
+  
 
-    setLoading(true);
-    const pendingTasks = await apiService.getPendingBatches(
-      license!.vcDetails.productName,
-      license!.vcDetails.ownerDID,
-      license!.vcDetails.allowedEvent
-    );
-
-    setTasks(pendingTasks);
-  };
-
-  const onGetTasks = () => {
-    getPendingTasks()
-      .catch((e: unknown) => {
-        console.error('Error on fetching pending tasks: ', e);
-        let msg = 'Error on fetching pending tasks';
-        if (e instanceof Error) msg = msg + ': ' + e.message;
-        if (typeof e === 'string') msg = msg + ': ' + e;
-        setError(msg);
-      })
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    license && onGetTasks();
-  }, [license]);
-
-  const handleMarkAsComplete = async () => {
-    if (!selectedTask) return;
-
-    // Fetch event details based on product name
-    try {
-      setLoading(true);
-      const eventDetailsReq = await apiService.getRequiredEvents(license!.vcDetails.productName);
-
-      const eventDetailOptions: EventDetailsOptionType[] = eventDetailsReq.eventsDetails.filter(
-        (item) => item.details
-      );
-
-      // Check if there are event details for this allowed event
-      if (!eventDetailOptions || eventDetailOptions.length === 0) {
-        setError('No event details found for the selected product event type.');
-
-        return;
-      }
-      const matchingEventDetail = eventDetailOptions.find(
-        (option) => option.type === selectedTask.type
-      ) as unknown as EventDetailsOptionType;
-
-      if (!matchingEventDetail || matchingEventDetail.details.length === 0) {
-        setError('No event details found for the selected product event type.');
-      } else {
-        const eventDetailsObject: {[key: string]: string} = {};
-        matchingEventDetail.details.forEach((detail) => {
-          eventDetailsObject[detail] = '';
-        });
-
-        setEventDetails(eventDetailsObject as EventDetailsType);
-        setIsEventDetails(true);
-        setIsModalOpen(true);
-      }
-    } catch (err) {
-      console.error('Error getting event details:', err);
-      setError('Error getting event details: \n' + err);
-      setEventDetails(null);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
@@ -187,53 +132,13 @@ const UploadDocs = ({walletModel}: PropsPendingTasks) => {
       behavior: 'smooth',
     });
 
-  const handleProceed = async () => {
-    if (!eventDetails) {
-      setError('Please enter event details.');
-      return;
-    }
 
-    try {
-      scrollWindowTop();
-      setLoading(true);
-      const updatedBatchResp =
-        selectedTask &&
-        (await apiService.updateBatch(
-          selectedTask.documentId,
-          eventDetails,
-          license?.jwt as string
-        ));
-
-      if (updatedBatchResp?.success) {
-        if (license?.vcDetails.lastInChain) {
-          setIsBatchCompleted(true); // to triger alert success  complete message
-        } else {
-          setIsBatchUpdated(true); // update sucess alert
-        }
-        onGetTasks();
-      }
-      if (!updatedBatchResp?.success) {
-        if (updatedBatchResp?.errors) {
-          setError(updatedBatchResp?.errors.join(', '));
-        } else setError('failed but no error description');
-      }
-    } catch (err) {
-      console.error('Error updating batch:', err);
-      let errMsg = 'Error updating batch';
-      if (err instanceof Error) {
-        errMsg = errMsg + ': ' + err.message;
-      }
-      setError(errMsg);
-    } finally {
-      setLoading(false);
-    }
+  const toCloseErrorAlert = () => {
+    setError(null);
   };
 
-  const toCloseAlert = () => {
-    setError(null);
-    setIsBatchUpdated(false);
-    setEventDetails(null);
-    setSelectedTask(null);
+  const toCloseSuccessAlert = () => {
+    setSuccess(null);
   };
 
   if (loading) {
@@ -248,15 +153,22 @@ const UploadDocs = ({walletModel}: PropsPendingTasks) => {
 
   return (
     <Container>
-      {error !== null && (
-        <ErrorDownloadAlert
-          message={error as string}
-          isErrorWindow={error !== null}
-          onClose={toCloseAlert}
-        />
-      )}
+    
+       {error && (
+        <ErrorDownloadAlert message={error} isErrorWindow={true} onClose={toCloseErrorAlert} />
+         )}
+
+        {success && (
+        <SuccessAlert isOpen={true} onClose={toCloseSuccessAlert} alertText={success} />
+         )}
+
    
-      <Box sx={{px: 6}}>
+      <Box sx={{px: 6,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'start',
+        paddingInline: '5px'
+      }}>
         <Typography
           sx={{textAlign: 'center', marginBottom: '0 !important'}}
           variant="h2"
@@ -265,14 +177,34 @@ const UploadDocs = ({walletModel}: PropsPendingTasks) => {
         >
           Encrypt and Upload prepared Docs
         </Typography>
-      </Box>
 
-      <div>
-           <input type="file" onChange={(e) => {
+        <Typography sx={{textAlign: 'center', fontStyle: 'italic', marginTop: '20px'}} >
+          select a prepared pdf file to upload to off-chain storage.
+        </Typography>
+      
+        <Typography sx={{textAlign: 'center',fontStyle: 'italic', marginTop: '10px'}}>
+          it will be encrypted with a random key before uploading.
+        </Typography>
+
+        <Typography sx={{textAlign: 'center',fontStyle: 'italic', marginTop: '10px'}}>
+          the random key will be stored in your wallet and you will have exclusive access to it.
+        </Typography>
+
+        <Box sx={{px: 6,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'start',
+        paddingInline: '25px',
+        marginTop: '15px'
+         }}>
+      
+           <input type="file" accept="application/pdf" style={{marginTop:"15px"}} onChange={(e) => {
                if (e.target.files) setFile(e.target.files[0])
            } } />
-           <button type="button" onClick={upload}>Upload</button>
-       </div>
+           <Button sx={{marginTop:'15px'}} variant="contained" size="small" disabled={!file} onClick={upload}>Upload</Button>
+        </Box>
+
+      </Box>
 
 
     </Container>

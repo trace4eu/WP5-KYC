@@ -605,6 +605,7 @@ export async function waitToBeMined(
           kycEvent.createdAt = tntEvent.timestamp.datetime;
           kycEvent.externalHash = tntEvent.externalHash;
           kycEvent.eventId = event;
+          kycEvent.tntId = hash;
           
           kycEvents.push(kycEvent)
           
@@ -647,7 +648,7 @@ export async function waitToBeMined(
 
   }
 
-  export async function getEvent(hash:string, eventId: string) {
+  export async function getEvent(hash:string, eventId: string): Promise<TnTEvent | string> {
 
     const docUrl = 'https://api-pilot.ebsi.eu/track-and-trace/v1/documents'
 
@@ -663,23 +664,19 @@ export async function waitToBeMined(
           )
           console.log('event->'+response.data);
           const tntEvent = response.data as TnTEvent;
-          const kycEvent = JSON.parse(tntEvent.metadata) as KYCEvent;
+          //const kycEvent = JSON.parse(tntEvent.metadata) as KYCEvent;
           //return {sender: tntEvent.sender, kycEvent, success}
-          return response.data;
+          return tntEvent;
           //kycEvent.createdAt = tntEvent.timestamp.datetime;
          // pdoEvents.push(pdoEvent)
           
       
           } catch (error) {
            // console.log('getdocument error->'+error);
-            success = false;
+            return 'could not get event'
           // return {pdoEvents: []}
           } 
-        
-      
-   
-
-    return { success}
+  
 
   }
 

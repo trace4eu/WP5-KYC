@@ -8,12 +8,9 @@ import TextField from '@mui/material/TextField';
 import CircularProgress from '@mui/material/CircularProgress';
 import ErrorDownloadAlert from '../components/ErrorDownloadAlert';
 import {apiService} from '../index';
-import Stack from '@mui/material/Stack';
-import CredentialDecoder from '../helpers/credentialDecoder';
-import CredentialStorageHelper from '../helpers/credentialStorageHelper';
+
 import {useAppDispatch} from '../features/hooks';
-import {credentialAdded, credentialsAddAll, credentialsRemoved} from '../features/credentialSlice';
-import CredentialSaveAlert from '../components/CredentialSaveOrShareOrDeleteAlert';
+
 import {CredentialStoredType, issuanceCertificateCardDetails} from '../types/typeCredential';
 import { IconButton, List, ListItem,ListItemButton,ListItemIcon,ListItemText,Checkbox, ListItemAvatar, Avatar, } from '@mui/material';
 import { CheckBoxOutlineBlankRounded, CheckBoxRounded, } from '@mui/icons-material';
@@ -21,8 +18,8 @@ import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import RadioButtonCheckedIcon from '@mui/icons-material/RadioButtonChecked';
 import { OffChainType } from '../types/offchainTypes';
 import { download } from '../helpers/offChainFiles';
-import { getEvent, getEventsOfType, getPersonalData } from '../helpers/tntUtil';
-import { EventType, KYC_SHARED, KYC_VERIFIED, KYCEvent } from '../interfaces/utils.interface';
+import { getDocument, getEvent, getEventsOfType, getPersonalData } from '../helpers/tntUtil';
+import { EventType, KYC_PERSONAL_SHARED, KYC_SHARED, KYC_VERIFIED, KYCEvent } from '../interfaces/utils.interface';
 import FileIcon from '@mui/icons-material/OfflineShare';
 import EventDetailsModal from '../components/EventDetailsModal';
 import { getBankJwkFromSenderDID } from '../helpers/keysUtil';
@@ -51,6 +48,9 @@ const MyActivity = ({walletModel}: PropsMyActivity) => {
   const [eventOftype, setEventOfType] = useState<OffchainWithEvent>();
   const [eventToShow, setEventToShow] = useState<object|null>(null);
   const [isModalOpen, setIsModalOpen] = useState(true);
+  const [modalTitle, setModalTitle] = useState('');
+  const [modalTnTId, setModalTnTId] = useState('');
+  const [modalTnTcreator, setModalTnTcreator] = useState('');
 
 
   type Option = {option:string,id:number}
@@ -60,6 +60,7 @@ const MyActivity = ({walletModel}: PropsMyActivity) => {
     { option: "encrypted Docs uploaded to off-chain",id:1 },
     { option: "encrypted Docs shared to banks",id:2 },
     { option: "My verified data by banks",id:3 },
+    { option: "My personal data shared to other banks",id:4 },
    
   ];
 
@@ -147,6 +148,12 @@ const MyActivity = ({walletModel}: PropsMyActivity) => {
       break;
      }
 
+     case 4 : {
+      getEvents('personal_data_shared')
+      setRenderOption(4)
+      break;
+     }
+
     }
 
 
@@ -171,9 +178,18 @@ const MyActivity = ({walletModel}: PropsMyActivity) => {
 
     setLoading(true);
     if (eventOftype?.offchainFile && eventOftype.kycevent) {
-      const result = await getEvent(eventOftype?.offchainFile?.documentId, eventOftype?.kycevent?.eventId);
-      console.log('getevent->'+JSON.stringify(result));
-      setEventToShow(result);
+      const {kycMeta} = await getDocument(eventOftype?.offchainFile?.documentId);
+      const tntEvent = await getEvent(eventOftype?.offchainFile?.documentId, eventOftype?.kycevent?.eventId);
+      console.log('getevent->'+JSON.stringify(tntEvent));
+      if (typeof tntEvent == 'string') {
+        setLoading(false);
+        setError(tntEvent);
+        return
+      }
+      setModalTitle('Event Details');
+      setModalTnTId(eventOftype?.offchainFile?.documentId)
+      setModalTnTcreator(kycMeta ? kycMeta : '')
+      setEventToShow(tntEvent);
       setIsModalOpen(true);
     }
     setLoading(false);
@@ -187,11 +203,50 @@ const MyActivity = ({walletModel}: PropsMyActivity) => {
       const verifiedEvent = eventOftype.kycevent as KYC_VERIFIED;
       const publicBankJwk = await getBankJwkFromSenderDID(verifiedEvent.sender);
       console.log('publicBankJwk->'+publicBankJwk);
-      if ('succes' in publicBankJwk ) {
-        return publicBankJwk
+      if ('success' in publicBankJwk ) {
+        setLoading(false);
+        setError(`could not get ${verifiedEvent.verifiedBy} public key`)
+        return
       }
       const result = await getPersonalData(verifiedEvent,publicBankJwk as unknown as JWK);
       console.log('getevent->'+JSON.stringify(result));
+      setModalTitle('Verified personal data')
+      const {kycMeta} = await getDocument(eventOftype?.offchainFile?.documentId);
+      setModalTnTId(eventOftype?.offchainFile?.documentId)
+      setModalTnTcreator(kycMeta ? kycMeta : '')
+      setEventToShow(result);
+      setIsModalOpen(true);
+    }
+    setLoading(false);
+  
+  }
+
+  const decryptShowVerifiedFromPersonal = async () => {
+
+    setLoading(true);
+    if (eventOftype?.offchainFile && eventOftype.kycevent) {
+      const personalEvent = eventOftype.kycevent as KYC_PERSONAL_SHARED;
+      const tntEvent = await getEvent(personalEvent.tntId, personalEvent.docsVerifedEventId)
+      if (typeof tntEvent == 'string') {
+        setLoading(false);
+        setError(tntEvent);
+        return
+      }
+      const verifiedEvent  = JSON.parse(tntEvent.metadata) as KYC_VERIFIED;
+      console.log('verifiedEvent.sender->'+tntEvent.sender);
+      const publicBankJwk = await getBankJwkFromSenderDID(tntEvent.sender);
+      console.log('publicBankJwk->'+publicBankJwk);
+      if ('success' in publicBankJwk ) {
+        setLoading(false);
+        setError(`could not get ${verifiedEvent.verifiedBy} public key`)
+        return
+      }
+      const result = await getPersonalData(verifiedEvent,publicBankJwk as unknown as JWK);
+      console.log('getevent->'+JSON.stringify(result));
+      setModalTitle('Verified personal data')
+      const {kycMeta} = await getDocument(eventOftype?.offchainFile?.documentId);
+      setModalTnTId(eventOftype?.offchainFile?.documentId)
+      setModalTnTcreator(kycMeta ? kycMeta : '')
       setEventToShow(result);
       setIsModalOpen(true);
     }
@@ -428,7 +483,7 @@ const MyActivity = ({walletModel}: PropsMyActivity) => {
          : (
           <>
           <Typography sx={{ textAlign: 'center' }} variant="h4" className="govcy-h4">
-                verified events
+                verified by banks events
           </Typography>
           <List dense sx={{ width: '100%', maxWidth: 360, bgcolor: 'background.paper' }}>
                   {eventsOftype.map((value) => {
@@ -495,6 +550,85 @@ const MyActivity = ({walletModel}: PropsMyActivity) => {
          )
         )}
 
+{ renderOption ==4 && (
+        
+        eventsOftype.length==0  ?  (
+          <Typography sx={{textAlign: 'center'}} variant="h4" className="govcy-h4">
+          nothing found
+          </Typography>
+          )
+         : (
+          <>
+          <Typography sx={{ textAlign: 'center' }} variant="h4" className="govcy-h4">
+                personal data shared events
+          </Typography>
+          <List dense sx={{ width: '100%', maxWidth: 360, bgcolor: 'background.paper' }}>
+                  {eventsOftype.map((value) => {
+                    const labelId = `checkbox-list-label-${value}`;
+                    if (value.offchainFile) {
+                      const event = value.kycevent as KYC_PERSONAL_SHARED;
+                      return (
+                        <ListItem
+                          key={value.kycevent?.createdAt}
+                          disablePadding
+                        >
+                         <ListItemButton role={undefined} onClick={handleToggleEvent(value)} sx={{ height: '70px' }}>
+                          <ListItemIcon>
+                            <Checkbox
+                              icon={<RadioButtonUncheckedIcon />}
+                              checkedIcon={<RadioButtonCheckedIcon />}
+                              edge="start"
+                              checked={value == eventOftype}
+                              tabIndex={-1}
+                              disableRipple
+                              inputProps={{ 'aria-labelledby': labelId }} />
+                          </ListItemIcon>
+                          <ListItemText id={labelId} 
+                                primary={value.offchainFile.preparedFileName} 
+                              //  secondary={`personal data shared to ${event.sharedForName}verified by ${event.verifiedBy}`} />
+                                 secondary={<span>personal data shared to {event.sharedForName}
+                                                  <br/>verified by {event.verifiedBy}</span>} />
+                        </ListItemButton>
+
+                        </ListItem>
+                      );
+                    }
+                  })}
+           </List>
+           <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'flex-start',
+              alignItems: 'center',
+              paddingTop: 2,
+              p:1,
+              m:1
+            }}
+          >
+           <Button variant="contained"
+            size="small"
+            onClick={showEvent}
+            sx={{ mt: 2 }} fullWidth
+            disabled={eventOftype == null}
+          >
+            event details
+          </Button>
+
+          <Button variant="contained"
+            size="small"
+            onClick={decryptShowVerifiedFromPersonal}
+            sx={{ mt: 2, marginLeft: 2 }} fullWidth
+            disabled={eventOftype == null}
+          >
+            decrypt personal data
+          </Button>
+          </Box>
+          </>
+  
+    
+         )
+        )}
+
   </Box>
 
   { eventToShow && (
@@ -502,6 +636,9 @@ const MyActivity = ({walletModel}: PropsMyActivity) => {
           isOpen={isModalOpen}
           onClose={handleCloseModal}
           event={eventToShow}
+          title={modalTitle}
+          tntId= {modalTnTId}
+          tntcreator={modalTnTcreator}
          
         />
       )}

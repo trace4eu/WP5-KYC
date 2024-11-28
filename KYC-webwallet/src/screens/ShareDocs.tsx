@@ -27,6 +27,7 @@ const ShareDocs = ({walletModel}: PropsShareDocs) => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
   const [offChainFiles, setOffChainFiles] = useState<Array<OffChainType> >([]);
   const [fileToShare, setFileToShare] = useState<OffChainType>();
   const [bankToShare, setBankToShare] = useState<Bank>();
@@ -131,7 +132,11 @@ const ShareDocs = ({walletModel}: PropsShareDocs) => {
         console.log('error from init_share. docid->'+documentId);
         console.log(initShareResp);
         setLoading(false);
-        setError('error from init_share')
+        let errormessage =''
+        if (initShareResp && initShareResp.errors) {
+          errormessage = initShareResp.errors[0]
+        }
+        setError(`error from init_share. ${errormessage}`)
         return;
        }
       }
@@ -151,7 +156,7 @@ const ShareDocs = ({walletModel}: PropsShareDocs) => {
         if ('success' in publicKeyJwkBank ) {
           setLoading(false);
           console.log('could not get bank publickey from its jwks api');
-          setError('could not get bank publickey from its jwks api')
+          setError(`could not get ${bankToShare.bankName} publickey from its jwks api`)
           return;
         }
         const encryptedEncHexKey= await encryptEncryptionKey(
@@ -303,6 +308,8 @@ const ShareDocs = ({walletModel}: PropsShareDocs) => {
               </Typography>
           )}
         </Box>
+
+        
       </Container>
     )
 

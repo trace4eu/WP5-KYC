@@ -3,6 +3,9 @@ import { exportJWK, type JWK, type KeyLike, generateKeyPair } from "jose";
 import { Resolver } from "did-resolver";
 import { validate as validateEbsiDid } from "@cef-ebsi/ebsi-did-resolver";
 import { util as keyDidMethodHelpers } from "@cef-ebsi/key-did-resolver";
+import { CheckResult } from "src/shared/interfaces.js";
+import axios, { AxiosResponse } from "axios";
+import { z } from "zod";
 
 export async function getPublicKeyJWK_fromDID(
 
@@ -102,3 +105,103 @@ export async function getPublicKeyJWK_fromDID(
 
    
 }
+
+
+export const jwkSchema = z
+  .object({
+    // Only validate that `kty` is present
+    kty: z.string(),
+    kid: z.optional(z.string()),
+    crv: z.optional(z.string()),
+  })
+  .passthrough(); // Allow extra properties
+
+export const jwksSchema = z.object({
+    keys: z.array(jwkSchema).nonempty(),
+  });
+  
+  export type JWKS = z.infer<typeof jwksSchema>;
+
+
+
+export async function getBankJwkFromSenderDID(bankDID:string):Promise<CheckResult|JWK> {
+
+  type Bank = {
+
+    bankName: string;
+    bankDID: string;
+    bankUrl: string;
+ 
+ }
+
+   const banks = await getBanks() as Bank[];
+   const banksf = banks.filter((bank=> bank.bankDID == bankDID))
+   if (!banksf || !banksf[0]) {
+    return {success:false,errors:[`bank not found`]}
+   }
+   const bankurl = banksf[0].bankUrl;
+   return await getBankJwk(bankurl);
+
+}
+
+
+export async function getBankJwk(bankUrl:string):Promise<CheckResult|JWK> {
+
+    const jwks_uri=`${bankUrl}/jwks`.replace('tnt','auth')
+
+    console.log('sender bank jwks url->'+jwks_uri);
+    let clientJwksRequest: AxiosResponse;
+    try {
+      clientJwksRequest = await axios.get<unknown>(jwks_uri);
+    } catch (e) {
+      return {success:false,errors:[`Can't get bank's JWKS ${e}`]}
+     
+    }
+  
+    // Validate JWKS
+    const clientJwks = jwksSchema.safeParse(clientJwksRequest.data);
+  
+    if (!clientJwks.success) {
+      const errorDesc = clientJwks.error.issues
+        .map(
+          (issue) =>
+            `[${issue.code}] in '${issue.path.join(".")}': ${issue.message}`
+        )
+        .join("\n");
+       
+        return {success:false,errors:[`invalid bank jwks: ${errorDesc}`]}
+        
+    }
+  
+    const jwks = clientJwks.data;
+    if (!jwks.keys || !jwks.keys[0]) {
+      return {success:false,errors:[`jwks key not found`]}
+    }
+    console.log('bank-keys->'+JSON.stringify(jwks));
+    try {
+     const jwk = jwks.keys[0] as JWK
+     return jwk
+    } catch (e) {
+      return {success:false,errors:[`jwk conversion error`]}
+    }
+ 
+
+}
+
+export async function getBanks() {
+
+  
+  let response: AxiosResponse;
+  try {
+    const cbcUrl = process.env['CBC_URL'];
+    response = await axios.get<unknown>(`${cbcUrl}/banks`);
+  } catch (e) {
+    console.log(`Can't get banks ${e}`);
+    return []
+  }
+
+
+  return response.data
+
+}
+

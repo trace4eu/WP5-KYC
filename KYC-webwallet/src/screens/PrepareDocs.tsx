@@ -3,41 +3,29 @@ import WalletModel from '../models/WalletModel';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Container from '@mui/material/Container';
-import {useAppDispatch, useAppSelector} from '../features/hooks';
-import {selectedCredential, selectSingleCredential} from '../features/credentialSlice';
-import {apiService} from '../index';
-import List from '@mui/material/List';
-import ListItem from '@mui/material/ListItem';
-import ListItemText from '@mui/material/ListItemText';
-import {ReqEventsRespType} from '../types/newBatchTypes';
-import BatchComponent from '../components/BatchComponent';
+
 import ErrorDownloadAlert from '../components/ErrorDownloadAlert';
-import {CircularProgress} from '@mui/material';
-import {CredentialStoredType} from '../types/typeCredential';
+import {Button, CircularProgress} from '@mui/material';
+
+import SuccessAlert from '../components/SuccessAlert';
 
 interface PropsPrepareDocs {
   walletModel: WalletModel;
 }
 
 const PrepareDocs = ({walletModel}: PropsPrepareDocs) => {
-  const [events, setEvents] = useState<Array<string> | null>(null);
+ 
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState<File>()
-  const dispatch = useAppDispatch();
+ 
+ 
 
-  const license = useAppSelector(selectSingleCredential);
-  useEffect(() => {
-    if (!license) {
-      walletModel.getStoredCredentials() && walletModel.getStoredCredentials().length > 0;
-      // const existingVC: CredentialStoredType = walletModel.getStoredCredentials()[0];
 
-      // if (existingVC) {
-      //   dispatch(selectedCredential(existingVC.jwt));
-      // }
-    }
-  }, []);
-
+  const upload = async () => {
+    setError('not implemented yet')
+  }
 
   const saveFile = async (blob:Blob) => {
     const a = document.createElement('a');
@@ -64,52 +52,17 @@ const PrepareDocs = ({walletModel}: PropsPrepareDocs) => {
 
   }
 
-  const getRequiredEvents = async () => {
-    try {
-      setLoading(true);
-      const reqEventsResp: ReqEventsRespType = await apiService.getRequiredEvents(
-        license!.vcDetails.productName
-      );
-      // Filter requiredEvents to exclude the lastInChainEvent
-      const filteredRequiredEvents: string[] = reqEventsResp.requiredEvents.filter(
-        (event: string) => event !== reqEventsResp.lastInChainEvent
-      );
+  
 
-      if (filteredRequiredEvents && filteredRequiredEvents.length > 0) {
-        setEvents(filteredRequiredEvents);
-      } else {
-        throw new Error('request events error');
-      }
-    } catch (error: unknown) {
-      console.error('request events error', error);
-      let errorMessage = 'Error submitting batch';
-      if (typeof error === 'string') {
-        errorMessage = error;
-      }
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (license && license?.vcDetails.lastInChain) {
-      getRequiredEvents();
-    }
-  }, [license, license?.vcDetails.lastInChain]);
-
-  const lastInChainWarning = !license?.vcDetails.lastInChain ? (
-    <Typography sx={{textAlign: 'center'}}>
-      Only last in chain actors can create a new batch.
-    </Typography>
-  ) : null;
-
-  const toCloseAlert = () => {
+  const toCloseErrorAlert = () => {
     setError(null);
   };
+
+  const toCloseSuccessAlert = () => {
+    setSuccess(null);
+  };
+
+
 
   if (loading) {
     return (
@@ -120,62 +73,59 @@ const PrepareDocs = ({walletModel}: PropsPrepareDocs) => {
   }
 
   return (
-    <Container sx={{position: 'relative'}}>
-      {error !== null && (
-        <ErrorDownloadAlert
-          message={error as string}
-          isErrorWindow={error !== null}
-          onClose={toCloseAlert}
-        />
-      )}
+    <Container>
+  
+      {error && (
+        <ErrorDownloadAlert message={error} isErrorWindow={true} onClose={toCloseErrorAlert} />
+         )}
 
-      <Box sx={{px: 6}}>
+      {success && (
+        <SuccessAlert isOpen={true} onClose={toCloseSuccessAlert} alertText={success} />
+         )}
+   
+      <Box sx={{px: 6,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'start',
+        paddingInline: '5px'
+      }}>
         <Typography
-          sx={{textAlign: 'center'}}
-          variant="h3"
-          className="govcy-h3"
+          sx={{textAlign: 'center', marginBottom: '0 !important'}}
+          variant="h2"
+          className="govcy-h2"
           fontWeight="fontWeightBold"
         >
-          Select and prepare doc for upload
+          Select files to prepare for upload
         </Typography>
-        <Typography sx={{textAlign: 'center'}}>
-          the prepared doc will be saved in your local disk.
+
+        <Typography sx={{textAlign: 'center', fontStyle: 'italic', marginTop: '20px'}} >
+          select one or more files from your local disk. 
         </Typography>
-        <Box>
-          
-       <div>
-           <input type="file" onChange={(e) => {
+      
+        <Typography sx={{textAlign: 'center', fontStyle: 'italic', marginTop: '10px'}} >
+          selected files will be merged to a single pdf file.
+        </Typography>
+        <Typography sx={{textAlign: 'center',fontStyle: 'italic', marginTop: '10px'}}>
+          the prepared file will be saved in your local disk.
+        </Typography>
+
+        <Box sx={{px: 6,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'start',
+        paddingInline: '25px',
+        marginTop: '15px'
+         }}>
+      
+           <input type="file" accept="application/pdf" multiple style={{marginTop:"15px"}} onChange={(e) => {
                if (e.target.files) setFile(e.target.files[0])
            } } />
-           <button type="button" onClick={prepareFiles}>Prepare</button>
-       </div>
-
+           <Button sx={{marginTop:'15px'}} variant="contained" size="small" disabled={!file} onClick={upload}>Prepare</Button>
         </Box>
-        
-        {events && license && !lastInChainWarning && (
-          <Box>
-            <Typography gutterBottom>Events Required to Complete the Batch Production:</Typography>
-            <List>
-              {events.map((event, index) => (
-                <ListItem key={index}>
-                  <ListItemText primary={`${event}`} />
-                </ListItem>
-              ))}
-            </List>
-            <Typography>
-              Type the new batch id and select the supply actors to take part in the new batch.
-              <span style={{fontWeight: 500}}>
-                You must select one for each required event above.
-              </span>
-            </Typography>
-            <BatchComponent
-              productName={license!.vcDetails.productName}
-              walletModel={walletModel}
-              jwtvc={license!.jwt}
-            />
-          </Box>
-        )}
+
       </Box>
+
+
     </Container>
   );
 };

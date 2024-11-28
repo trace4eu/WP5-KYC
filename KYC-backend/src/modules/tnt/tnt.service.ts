@@ -115,7 +115,7 @@ import NewBatchDto, { InitKYCShareDto } from "./dto/initKYCshare.dto.js";
 import { Product, ProductDocument } from "../../shared/models/products.model.js";
 import axios, { AxiosError, AxiosResponse } from "axios";
 import { logAxiosRequestError, signAndSendTransaction, waitToBeMined } from "../../shared/credential-issuer/utils.js";
-import { Alg, BatchAll, CompletedBatch, CompletedTask, KYC_SHARED, KYC_VERIFIED, KYCEvent, PaginatedList, PDOdocument, PDOEvent, PendingBatch, PendingBatchAll, PendingTask, RequiredEvent, TnTDocument, TnTEvent, UnknownObject, UnsignedTransaction } from "./interfaces/index.js";
+import { Alg, BatchAll, CompletedBatch, CompletedTask, KYC_PERSONAL_SHARED, KYC_SHARED, KYC_VERIFIED, KYCEvent, PaginatedList, PDOdocument, PDOEvent, PendingBatch, PendingBatchAll, PendingTask, RequiredEvent, TnTDocument, TnTEvent, UnknownObject, UnsignedTransaction } from "./interfaces/index.js";
 import { fromHexString, multibaseEncode, removePrefix0x, toHexString } from "./utils/utils.js";
 import createVPJwt from "./utils/verifiablePresentation.js";
 import Client from "./utils/Client.js";
@@ -129,7 +129,7 @@ import qs from "qs";
 import { OPMetadata, TokenResponse } from "../../shared/auth-server/interfaces.js";
 import { PostTokenPreAuthorizedCodeDto } from "src/shared/auth-server/index.js";
 import DecryptDto, { MockDecryptDto } from "../admin/dto/decrypt.dto.js";
-import { getPublicKeyJWK_fromDID } from "./utils/didresolver.js";
+import { getBankJwkFromSenderDID, getPublicKeyJWK_fromDID } from "./utils/didresolver.js";
 import { getResolver as getEbsiDidResolver } from "@cef-ebsi/ebsi-did-resolver";
 import { getResolver as getKeyDidResolver } from "@cef-ebsi/key-did-resolver";
 import  { AddEventDto } from "./dto/addEvent.dto.js";
@@ -727,16 +727,26 @@ return result;
 
     let decryptionKey;
     const {privateKeyJwk} = await this.getIssuerKeyPair("ES256");
+    
     if (privateKeyJwk) {
-      
-      decryptionKey = await decryptEncryptionKey(
-        encEncKey,
-        publicKeyJwkWallet,
-        privateKeyJwk
-      )
+      try {
+        decryptionKey = await decryptEncryptionKey(
+          encEncKey,
+          publicKeyJwkWallet,
+          privateKeyJwk
+        )
+      } catch (e) {
+        return {
+          success: false,
+          errors: [
+            'could not decrypt encryption key'
+          ],
+        }
+      }
     } else {
       console.log('no issuer key pair');
     }
+
     console.log('decryption Key->'+decryptionKey);
 
     //use decryptionKey to decrypt the encrypted docs in off-chain
@@ -839,7 +849,7 @@ return result;
   
   
 
-  async adminDecryptDocs(kycSharedEvent: KYC_SHARED, eventId:string): Promise<CheckResult|Buffer> {
+  async adminDecryptDocs(kycSharedEvent: KYC_SHARED): Promise<CheckResult|Buffer> {
 
     // const {documentId, eventId} = decryptDto;
 
@@ -914,13 +924,22 @@ return result;
 
     let decryptionKey;
     const {privateKeyJwk} = await this.getIssuerKeyPair("ES256");
+    console.log('my privateKeyJwk->'+JSON.stringify(privateKeyJwk));
     if (privateKeyJwk) {
-      
-      decryptionKey = await decryptEncryptionKey(
-        kycSharedEvent.encryptedEncryptionKey,
-        publicKeyJwkWallet,
-        privateKeyJwk
-      )
+      try {
+        decryptionKey = await decryptEncryptionKey(
+          kycSharedEvent.encryptedEncryptionKey,
+          publicKeyJwkWallet,
+          privateKeyJwk
+        )
+      } catch(e) {
+        return{
+          success: false,
+          errors: [
+            'could not get decryption key'
+          ],
+        }
+      }
     } else {
       console.log('no issuer key pair');
     }
@@ -1023,6 +1042,197 @@ return result;
    }
     
   }
+
+
+  
+
+  async adminDecryptPersonalData(
+    documentId:string,
+    kycPersonalSharedEvent: KYC_PERSONAL_SHARED
+  ): Promise<CheckResult|object> {
+
+
+    if (!kycPersonalSharedEvent.es256Did) {
+      return {
+        success: false,
+        errors: [
+          `es256 did is missing from event`
+        ],
+      };
+    }
+
+    const publicKeyJwkWallet = await getPublicKeyJWK_fromDID(kycPersonalSharedEvent.es256Did,this.didkeyResolver,this.ebsiResolver);
+
+    if (!publicKeyJwkWallet) {
+      console.log('could not get publickey from did');
+      return {
+        success: false,
+        errors: [
+          'could not get publickey from did'
+        ],
+      };
+    }
+
+    console.log('public wallet->'+JSON.stringify(publicKeyJwkWallet));
+
+    let decryptionKey;
+    const {privateKeyJwk} = await this.getIssuerKeyPair("ES256");
+    if (privateKeyJwk) {
+      
+      decryptionKey = await decryptEncryptionKey(
+        kycPersonalSharedEvent.encryptedEncryptionKey,
+        publicKeyJwkWallet,
+        privateKeyJwk
+      )
+    } else {
+      console.log('no issuer key pair');
+    }
+    console.log('decryption Key->'+decryptionKey);
+
+    //use decryptionKey to decrypt the personal data in verified event
+    //import key first
+    let personalDataDecryptionKey;
+
+    if (decryptionKey) {
+      personalDataDecryptionKey = await crypto.subtle.importKey(
+          "raw",
+          decryptionKey,
+      
+          "AES-GCM",
+          true,
+          ["decrypt"]
+        );
+    } else {
+
+      return {
+        success: false,
+        errors: [
+          'could not get decryption key'
+        ],
+      };
+    }
+
+    //get associated kyc_docs_shared event
+
+    const {sender, kycEvent, success} = await this.getEvent(documentId, kycPersonalSharedEvent.docsVerifedEventId);
+ 
+    //event sender is the wallet es256k did
+    //encryption was perfromed with es256 wallet private key. -> Need wallet es256 public key for decryption
+
+    if (!sender || !success) {
+      return {
+        success: false,
+        errors: [
+          'could not get associated verified_data event'
+        ],
+      };
+    }
+
+    if (kycEvent.eventType != "KYC_docs_verified") {
+      return {
+        success: false,
+        errors: [
+          `invalid event type -> ${kycEvent.eventType}. expected KYC_docs_verified`,
+        ],
+      };
+
+    }
+
+   
+
+    const kycVerifiedEvent = kycEvent as KYC_VERIFIED;
+
+    if (!kycVerifiedEvent.encryptedPersonalData) {
+      return {
+        success: false,
+        errors: [
+          'encryptedPersonalData missing from verified_data event'
+        ],
+      };
+    }
+
+    if (typeof(kycVerifiedEvent.encryptedPersonalData) !='string') {
+      return {
+        success: false,
+        errors: [
+          'encryptedPersonalData not a string'
+        ],
+      };
+    }
+
+   //get public key of verified_data sender event
+
+   const publicBankJwk = await getBankJwkFromSenderDID(sender);
+   console.log('publicBankJwk->'+JSON.stringify(publicBankJwk));
+   if ('success' in publicBankJwk ) {
+    return {
+      success: false,
+      errors: [
+        `could not get ${kycVerifiedEvent.verifiedBy} public key`
+      ],
+    };
+   }
+
+   //decrypt personal data
+  
+   console.log('starting decryption');
+   console.log('encryptedPersonaldata->'+kycVerifiedEvent.encryptedPersonalData);
+   const encryptedPersonaldata = fromHexString(kycVerifiedEvent.encryptedPersonalData);
+   console.log('encryptedPersonaldata length->'+encryptedPersonaldata.length);
+   //const dataBuffer = await encryptedDoc.data.arrayBuffer();
+  // const dataBuffer = this.stringToArrayBuffer(encryptedDoc.data);
+ //  console.log('encypted doc data length->'+dataBuffer.length);
+   let cleartext: ArrayBuffer;
+   const iv = Buffer.from("KYC-encryption");
+   
+   try {
+    cleartext = await crypto.subtle.decrypt(
+       { name: "AES-GCM", iv },
+       personalDataDecryptionKey,
+       encryptedPersonaldata,
+     );
+     console.log('decryption completed');
+   //   console.log('decrypted->'+cleartext.byteLength);
+   } catch (e) {
+
+     return {
+       success: false,
+       errors: [ 
+         `could not decrypt personal data doc ${e}`
+       ],
+     };
+   }
+   if (cleartext) {
+     console.log('cleatext length->'+cleartext.byteLength);
+     const clearDataBuffer = Buffer.from(cleartext);
+     console.log('clearPersonaldataBuffer length->'+clearDataBuffer.length);
+     const clearStringText = clearDataBuffer.toString();
+     console.log('clearpersonal->'+clearStringText);
+     try {
+     const personalDataString = JSON.parse(clearStringText);
+     return personalDataString as object
+
+     } catch (e) {
+       return {
+         success: false,
+         errors: [ 
+           `something went wrong`
+         ],
+       };
+
+     }
+
+    }
+
+   return {
+    success: false,
+    errors: [
+      `something went wrong`
+    ],
+   }
+    
+  }
+  
   
   async adminAddVerifiedEvent(
     documentId:string,
@@ -2648,6 +2858,8 @@ async  authorisationToken(scope:string, vpJwt:string) {
     descriptor_map: [],
   };
 
+  let accessToken;
+  try {
   const response = await axios.post(
     `${apiUrl}/token`,
     new URLSearchParams({
@@ -2659,11 +2871,14 @@ async  authorisationToken(scope:string, vpJwt:string) {
     httpOpts,
   );
 
-  const accessToken = (
+   accessToken = (
     response.data as {
       access_token: string;
     }
   ).access_token;
+} catch (e) {
+  return {error: `${e}`}
+}
   return accessToken;
 }
 
@@ -2752,6 +2967,7 @@ async checkCreateAccess(did:string): Promise<boolean> {
 
    const tntUrl = 'https://api-pilot.ebsi.eu/track-and-trace/v1'
 
+   try {
   const response = await axios.head(
     `${tntUrl}/accesses?creator=${did}`,
 
@@ -2760,7 +2976,9 @@ async checkCreateAccess(did:string): Promise<boolean> {
   if (response.status == 204) {
    return true;
  }
-
+} catch (e) {
+  return false;
+}
  return false;
 
 }

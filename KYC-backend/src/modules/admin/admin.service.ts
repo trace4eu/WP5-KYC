@@ -48,7 +48,7 @@ import KYCVerifiedDto, { PersonalDataObject } from "./dto/kycverified.dto.js";
 import { kycverifiedSchema } from "./validators/kycVerified.validator.js";
 import { cryptoKeyToHexString, encryptEncryptionKey, generateEncKey } from "../tnt/utils/tntUtils.js";
 import crypto from "node:crypto";
-import { KYC_SHARED } from "../tnt/interfaces/utils.interface.js";
+import { KYC_PERSONAL_SHARED, KYC_SHARED } from "../tnt/interfaces/utils.interface.js";
 
 
 
@@ -262,7 +262,7 @@ export class AdminService {
      }
  
 
-    const result= await this.tntService.adminDecryptDocs(kycSharedEvent, eventId);
+    const result= await this.tntService.adminDecryptDocs(kycSharedEvent);
      
     if ('success' in result) {
       let error;
@@ -274,6 +274,73 @@ export class AdminService {
      return result;
 
   }
+
+  async decryptPersonalData(
+    decryptDto : DecryptDto
+  ): Promise<object> {
+
+    if (this.opMode !== "BANK") {
+      this.logger.error('only available to Banks');
+      throw new BadRequestError(
+       'only available to banks'
+      );
+     }
+
+     const {documentId, eventId} = decryptDto;
+
+     const {sender, kycEvent, success} = await this.tntService.getEvent(documentId, eventId);
+ 
+     //event sender is the wallet es256k did
+     //encryption was perfromed with es256 wallet private key. -> Need wallet es256 public key for decryption
+ 
+     if (!sender || !success) {
+      throw new OAuth2Error("invalid_request", {
+        errorDescription: 'could not get event data',
+      });
+     }
+ 
+     if (kycEvent.eventType != "personal_data_shared") {
+ 
+      throw new OAuth2Error("invalid_request", {
+        errorDescription: `invalid event type -> ${kycEvent.eventType}`,
+      });
+      
+     }
+ 
+    
+ 
+     const kycPersonalShareEvent = kycEvent as KYC_PERSONAL_SHARED;
+ 
+     if (!kycPersonalShareEvent.encryptedEncryptionKey) {
+
+      throw new OAuth2Error("invalid_request", {
+        errorDescription: `encr encr key is missing from event`,
+      });
+      
+  
+     }
+ 
+     if (!kycPersonalShareEvent.docsVerifedEventId) {
+      throw new OAuth2Error("invalid_request", {
+        errorDescription: `docsVerifedEventId is missing from event`,
+      }); 
+  
+     }
+ 
+
+    const result= await this.tntService.adminDecryptPersonalData(documentId,kycPersonalShareEvent);
+     
+    if ('success' in result) {
+      let error;
+      if ('errors' in result) error = result.errors[0]; else error='no error description'
+      throw new OAuth2Error("invalid_request", {
+         errorDescription: error,
+       });
+     }
+     return result;
+
+  }
+
 
   async kyc_verified(
     kycVerifiedDto : KYCVerifiedDto
