@@ -37,6 +37,22 @@ export class KYCVerifiedDto {
  
 }
 
+export class UpdateEventDto {
+
+
+  @IsString()
+  documentId!: string;
+
+  @IsString()
+  eventId!: string;
+
+  @IsString()
+  eventType!: string;
+
+  @IsString()
+  status!: string;
+ 
+}
 
 
 

@@ -35,15 +35,21 @@ import NewBatchDto, { InitKYCShareDto } from "./dto/initKYCshare.dto.js";
 import UpdateBatchDto from "./dto/updatebatch.dto.js";
 import { ProductsDto } from "../admin/dto/paginate.dto.js";
 import TnTqueryDto from "./dto/tntquery.dto.js";
-import TnTdocumentDto from "./dto/tntdocument.dto.js";
+import TnTdocumentDto, { TnTEventDto } from "./dto/tntdocument.dto.js";
 import { walletdidDto } from "./dto/walletdid.dto.js";
 import DecryptDto, { MockDecryptDto } from "../admin/dto/decrypt.dto.js";
 import AddEvent, { AddEventDto } from "./dto/addEvent.dto.js";
+import { TnTEvent } from "./interfaces/utils.interface.js";
 
 @Controller("/tnt")
 export class TnTController {
   constructor(private tntService: TntService) {}
 
+  @Get("/getProfile")
+  @HttpCode(201)
+  getProfile(): object {
+    return this.tntService.getProfile();
+  }
   
   @HttpCode(200)
   @Get("/jwks")
@@ -162,6 +168,19 @@ export class TnTController {
      console.log('params->'+JSON.stringify(params));
  
      return await this.tntService.document(params);
+   }
+
+   //used by bank and CBC admins
+   @Get("/tntevent")
+   @HttpCode(200)
+   async tntevent(
+     //@Req() req: Request,
+     @Query() params:TnTEventDto
+     ): Promise<TnTEvent | string> {
+   
+     console.log('params->'+JSON.stringify(params));
+ 
+     return await this.tntService.tntevent(params);
    }
 
   @HttpCode(201)

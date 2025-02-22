@@ -67,7 +67,7 @@ const Login = ({walletModel, setWalletOpen}: PropsLogin) => {
         }}
       >
         <Typography variant="h2" className="govcy-h2">
-          Open Wallet
+          Open KYC Wallet
         </Typography>
         <Typography>The wallet will be loaded from your browser's local storage.</Typography>
         <Stack

@@ -7,12 +7,30 @@ import multer from 'multer'
 import contentDisposition from 'content-disposition'
 import fs from 'fs'
 import bodyParser from 'body-parser'
+import https from 'https'
 
 
 dotenv.config();
 // create an express app
 const app: Express = express();
 const port = process.env.PORT || 3000;
+
+const isHttps = process.env.SETHTTPS || false;
+
+let key;
+let cert;
+let options;
+
+if (isHttps) {
+
+   key = fs.readFileSync('/certs/cert.key');
+   cert = fs.readFileSync('/certs/cert.crt');
+
+   options = {
+      key: key,
+      cert: cert
+    };
+}
 
 async function verifyvp(vptoken:string):Promise<boolean> {
   if (vptoken == 'vptoken') return true;
@@ -237,6 +255,23 @@ app.use('*', (req: Request, res: Response) => {
      res.status(404).json({ message: 'api not found'})
 })
 
+if (isHttps) {
+
+  const key = fs.readFileSync('/certs/cert.key');
+  const cert = fs.readFileSync('/certs/cert.crt');
+
+  const options = {
+       key: key,
+       cert: cert
+     };
+
+  https.createServer(options, app).listen(port, ()=> 
+    console.log(`[server]: Server is running at https://localhost:${port}`)
+  )
+  
+} else {
+
 app.listen(port, () => {
     console.log(`[server]: Server is running at http://localhost:${port}`);
-  });
+  })
+}

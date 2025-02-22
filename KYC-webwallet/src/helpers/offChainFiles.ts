@@ -21,7 +21,7 @@ export async function download(downloadfile: string, hexKey: string) {
     let result;
     let data;
     try {
-    result=await fetch(`http://localhost:3000/download?file=${downloadfile}`, );
+    result=await fetch(`${process.env.REACT_APP_OFF_CHAIN_URL}/download?file=${downloadfile}`, );
      
 
     } catch (error) {

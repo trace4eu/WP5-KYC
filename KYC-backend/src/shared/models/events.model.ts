@@ -28,7 +28,10 @@ export class Event {
   
   @Prop({required: false})
   randomEncKey!: string;
+
+  @Prop({required: true})
+  submittedDate!: Date;
 }
 
 export const EventsSchema = SchemaFactory.createForClass(Event);
-EventsSchema.index({documentId:1,eventId:1}, {unique:true})
+EventsSchema.index({documentId:1,eventId:1,eventType:1}, {unique:true})

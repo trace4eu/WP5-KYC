@@ -174,6 +174,13 @@ const MyActivity = ({walletModel}: PropsMyActivity) => {
   
   }
 
+  const deleteOffchainFile = async () => {
+
+        setError('not implemented');
+  
+  
+  }
+
   const showEvent = async () => {
 
     setLoading(true);
@@ -399,7 +406,7 @@ const MyActivity = ({walletModel}: PropsMyActivity) => {
             </Button>
             <Button variant="contained"
             size="small"
-            onClick={()=>{}}
+            onClick={deleteOffchainFile}
             sx={{ mt: 2 }} fullWidth
             disabled={offchainFile == null}
             style={{ marginLeft: 25}}

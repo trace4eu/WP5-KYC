@@ -10,7 +10,7 @@ import { walletdidDto } from "../tnt/dto/walletdid.dto.js";
 import ReqOnBoardDto from "./dto/reqonboard.dto.js";
 import DecryptDto, { MockDecryptDto } from "./dto/decrypt.dto.js";
 import  { ReqEventsDto } from "./dto/reqevents.dto.js";
-import KYCVerifiedDto from "./dto/kycverified.dto.js";
+import KYCVerifiedDto, { UpdateEventDto } from "./dto/kycverified.dto.js";
 
 
 const { sign } = pkg;
@@ -60,10 +60,10 @@ export class AdminController {
     }
 
     @HttpCode(200)
-    @Post("/decrypt_docs")
+    @Get("/decrypt_docs")
    // @Header('Content-Type', 'application/octet-stream')
     async decryptDocs(
-      @Body() decryptDto:DecryptDto
+      @Query() decryptDto:DecryptDto
     ): Promise<Buffer> {
       
       return await this.adminService.decryptDocs(decryptDto);
@@ -71,9 +71,21 @@ export class AdminController {
     }
 
     @HttpCode(200)
-    @Post("/decrypt_personal_data")
+    @Get("/getVerified")
+   // @Header('Content-Type', 'application/octet-stream')
+    async getVerified(
+      @Query() decryptDto:DecryptDto
+    ): Promise<object> {
+      
+      return await this.adminService.getVerified(decryptDto);
+    
+    }
+
+
+    @HttpCode(200)
+    @Get("/decrypt_personal_data")
     async decryptPersonalData(
-      @Body() decryptPersonalDataDto:DecryptDto
+      @Query() decryptPersonalDataDto:DecryptDto
     ): Promise<object> {
       
       return await this.adminService.decryptPersonalData(decryptPersonalDataDto);
@@ -102,6 +114,19 @@ export class AdminController {
     @Query() reqEventsDto:ReqEventsDto
   ): Promise<object> {
     return await this.adminService.localEvents(reqEventsDto);
+  }
+
+  @HttpCode(200)
+  @Patch("/event")
+ // @Header('Content-Type', 'application/octet-stream')
+  async updateEvent(
+    @Body() newEvent:UpdateEventDto
+  ): Promise<CheckResult> {
+    
+   
+   // return {success:true}
+   return await this.adminService.updateEvent(newEvent);
+  
   }
 
  

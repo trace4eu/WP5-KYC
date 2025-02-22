@@ -122,7 +122,7 @@ import Client from "./utils/Client.js";
 import crypto from "node:crypto";
 import UpdateBatchDto from "./dto/updatebatch.dto.js";
 import TnTqueryDto from "./dto/tntquery.dto.js";
-import TnTdocumentDto from "./dto/tntdocument.dto.js";
+import TnTdocumentDto, { TnTEventDto } from "./dto/tntdocument.dto.js";
 import { walletdidDto } from "./dto/walletdid.dto.js";
 import { Bank, BanksDocument } from "../../shared/models/banks.model.js";
 import qs from "qs";
@@ -414,6 +414,16 @@ export class TntService /*implements OnModuleInit, OnModuleDestroy*/ {
     // Return JWKS
     return {
       keys: [publicKeyJwk],
+    };
+  }
+
+  async getProfile(): Promise<object> {
+ 
+
+    // Return JWKS
+    return {
+      orgName: this.orgName,
+      opMode: this.opMode
     };
   }
 
@@ -777,8 +787,9 @@ return result;
   let encryptedDoc;
    try {
     
+    const offChainUrl = process.env['OFF_CHAIN_URL'];
     //changed from axios.get
-     encryptedDoc = await fetch(`http://localhost:3000/download?file=${offchainFile}`);
+     encryptedDoc = await fetch(`${offChainUrl}/download?file=${offchainFile}`);
      //console.log('encypted doc data length->'+encryptedDoc.length);
      
    } catch (e) {
@@ -851,53 +862,7 @@ return result;
 
   async adminDecryptDocs(kycSharedEvent: KYC_SHARED): Promise<CheckResult|Buffer> {
 
-    // const {documentId, eventId} = decryptDto;
 
-    // const {sender, kycEvent, success} = await this.getEvent(documentId, eventId);
-
-    // //event sender is the wallet es256k did
-    // //encryption was perfromed with es256 wallet private key. -> Need wallet es256 public key for decryption
-
-    // if (!sender || !success) {
-    //   return {
-    //     success: false,
-    //     errors: [
-    //       'could not get event data'
-    //     ],
-    //   };
-    // }
-
-    // if (kycEvent.eventType != "KYC_docs_shared") {
-
-    //   return {
-    //     success: false,
-    //     errors: [
-    //       `invalid event type -> ${kycEvent.eventType}`
-    //     ],
-    //   };
-    // }
-
-    // //decrypt encrypted encryption key
-
-    // const kycSharedEvent = kycEvent as KYC_SHARED;
-
-    // if (!kycSharedEvent.encryptedEncryptionKey) {
-    //   return {
-    //     success: false,
-    //     errors: [
-    //       `encr encr key is missing from event`
-    //     ],
-    //   };
-    // }
-
-    // if (!kycSharedEvent.offchainFilepath) {
-    //   return {
-    //     success: false,
-    //     errors: [
-    //       `offchain file path is missing from event`
-    //     ],
-    //   };
-    // }
 
     if (!kycSharedEvent.es256Did) {
       return {
@@ -973,9 +938,10 @@ return result;
   let encryptedDoc;
    try {
     
-    //changed from axios.get
-     encryptedDoc = await fetch(`http://localhost:3000/download?file=${kycSharedEvent.offchainFilepath}`);
-     //console.log('encypted doc data length->'+encryptedDoc.length);
+  
+     const offChainUrl = process.env['OFF_CHAIN_URL'];
+     //changed from axios.get
+      encryptedDoc = await fetch(`${offChainUrl}/download?file=${kycSharedEvent.offchainFilepath}`);
      
    } catch (e) {
     console.log('error doesnling file ');
@@ -1044,6 +1010,71 @@ return result;
   }
 
 
+  async adminGetVerified(
+    encryptedPersonalData:string, 
+    clearEncryptionKeyHex:string
+  ): Promise<CheckResult|object> {
+
+    const uint8Array = fromHexString(clearEncryptionKeyHex);
+
+    const personalDataDecryptionKey = await crypto.subtle.importKey(
+      "raw",
+      uint8Array,
+  
+      "AES-GCM",
+      true,
+      ["decrypt"]
+    );
+     
+    let cleartext: ArrayBuffer;
+    const iv = Buffer.from("KYC-encryption");
+    const cipher = fromHexString(encryptedPersonalData);
+    try {
+     cleartext = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv },
+        personalDataDecryptionKey,
+        cipher,
+      );
+      console.log('decryption completed');
+    //   console.log('decrypted->'+cleartext.byteLength);
+    } catch (e) {
+
+      return {
+        success: false,
+        errors: [ 
+          `could not decrypt verified data ${e}`
+        ],
+      };
+    }
+
+    if (cleartext) {
+      const clearDataBuffer = Buffer.from(cleartext);
+      
+      console.log('clearPersonaDataBuffer length->'+clearDataBuffer.length);
+      const clearStringText = clearDataBuffer.toString();
+      console.log('clearpersonal->'+clearStringText);
+      
+      try {
+       const personalDataString = JSON.parse(clearStringText);
+       return personalDataString as object
+
+      } catch (e) {
+        return {
+          success: false,
+          errors: [ 
+            `something went wrong`
+          ],
+        };
+      }
+
+  }
+  return {
+    success: false,
+    errors: [
+      `something went wrong`
+    ],
+   }
+}
   
 
   async adminDecryptPersonalData(
@@ -1210,7 +1241,7 @@ return result;
      console.log('clearpersonal->'+clearStringText);
      try {
      const personalDataString = JSON.parse(clearStringText);
-     return personalDataString as object
+     return {...personalDataString as object, verifiedBy:kycPersonalSharedEvent.verifiedBy }
 
      } catch (e) {
        return {
@@ -1350,6 +1381,7 @@ return result;
     
       console.log('eventid->'+eventId);
       //add to events db
+      const now = new Date();
 
       const newdbEvent = {
        documentId,
@@ -1357,11 +1389,23 @@ return result;
        eventType: 'KYC_docs_verified',
        customerName: customerName,
        randomEncKey: clearEncKeyHexString,
-       status: 'completed'
+       status: 'completed',
+       submittedDate: new Date(now.getTime() - now.getTimezoneOffset()*60000),
 
       } as Event;
 
       await new this.eventModel(newdbEvent).save();
+
+      const event= await this.eventModel.findOne({documentId,eventId:sharedEvent.eventId,eventType:"KYC_docs_shared"}).exec();
+      if (event) {
+        try{
+          await this.eventModel.findByIdAndUpdate(event._id, {status:'completed'}).exec();
+        } catch (e) {
+          console.log('error updating events db');
+        }
+      } else {
+        console.log('KYC_docs_shared event not found for updating');
+      }
 
       return {success:true}
       
@@ -2291,6 +2335,7 @@ return result;
       );
      }
 
+    const now = new Date();
     const {documentId, eventId, customerName, eventType} = bankEvent;
 
     const newEvent = {
@@ -2298,7 +2343,8 @@ return result;
       eventId,
       customerName,
       eventType,
-      status: 'pending'
+      status: 'pending',
+      submittedDate: new Date(now.getTime() - now.getTimezoneOffset()*60000),
 
     } as Event;
 
@@ -2383,6 +2429,7 @@ return result;
           console.log('event->'+response.data);
           const tntEvent = response.data as TnTEvent;
           const kycEvent = JSON.parse(tntEvent.metadata) as KYCEvent;
+          kycEvent.eventId = tntEvent.hash;
           return {sender: tntEvent.sender, kycEvent, success}
           //kycEvent.createdAt = tntEvent.timestamp.datetime;
          // pdoEvents.push(pdoEvent)
@@ -2747,7 +2794,33 @@ return result;
   }
 
 
+     
+  async tntevent(tntQuery: TnTEventDto): Promise<TnTEvent | string> {
+
+    const docUrl = 'https://api-pilot.ebsi.eu/track-and-trace/v1/documents'
+    const {documentId, eventId} = tntQuery;
+
+    try {
+      const response = await axios.get(
+        `${docUrl}/${documentId}/events/${eventId}`,
+        
+      )
+      console.log('event->'+response.data);
+      const tntEvent = response.data as TnTEvent;
+     
+      return tntEvent
+      //kycEvent.createdAt = tntEvent.timestamp.datetime;
+     // pdoEvents.push(pdoEvent)
+      
   
+      } catch (error) {
+       // console.log('getdocument error->'+error);
+        return 'could not get event'
+      // return {pdoEvents: []}
+      } 
+
+  }
+
 
   
     

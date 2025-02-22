@@ -12,4 +12,15 @@ export class TnTdocumentDto {
  
 }
 
+
+export class TnTEventDto {
+
+ 
+  @IsString()
+  documentId!: string;
+  @IsString()
+  eventId!: string;
+ 
+}
+
 export default TnTdocumentDto;

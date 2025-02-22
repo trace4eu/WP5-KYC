@@ -139,14 +139,14 @@ export interface UnsignedTransaction {
   
     if (data instanceof Blob) {
       var arrayBuffer = await data.arrayBuffer()
-      var msgUint8 = new Uint8Array(arrayBuffer)
+      let msgUint8 = new Uint8Array(arrayBuffer)
       
       return await Hex(msgUint8)
     }
     
     //string or stringify jason
     var encoder = new TextEncoder()
-    var msgUint8 = encoder.encode(data)
+    let msgUint8 = encoder.encode(data)
     
     return await Hex( msgUint8)
   }

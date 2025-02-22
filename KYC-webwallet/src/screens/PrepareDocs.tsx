@@ -1,11 +1,13 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import WalletModel from '../models/WalletModel';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Container from '@mui/material/Container';
 
+import { PDFDocument, PDFPage } from "pdf-lib";
+
 import ErrorDownloadAlert from '../components/ErrorDownloadAlert';
-import {Button, CircularProgress} from '@mui/material';
+import {Button, CircularProgress, List, ListItem, ListItemText} from '@mui/material';
 
 import SuccessAlert from '../components/SuccessAlert';
 
@@ -18,39 +20,72 @@ const PrepareDocs = ({walletModel}: PropsPrepareDocs) => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [file, setFile] = useState<File>()
+  const [files, setFiles] = useState<FileList>()
+ 
+  const hiddenFileInput = useRef<HTMLInputElement>(null);
  
  
+  const fileToBuffer = async (index:number) => {
 
-
-  const upload = async () => {
-    setError('not implemented yet')
+    if (files && files.item(index) && files.item(index)) {
+      const arrayBuffer = await files.item(index)?.arrayBuffer()
+      return arrayBuffer;
+   
+    }
+    return null;
   }
 
+  const merge = async () => {
+
+    const pdfsToMerges:ArrayBuffer[] = []
+    
+    if (files) {
+
+      for (let i=0; i<files.length;i++) {
+        console.log('filepro->'+files.item(i)?.name)
+        const filebuf = await fileToBuffer(i);
+        if (filebuf)
+         pdfsToMerges.push(filebuf);
+      }
+    }
+      const mergedPdf = await PDFDocument.create();
+      const actions = pdfsToMerges.map(async pdfBuffer => {
+        const pdf = await PDFDocument.load(pdfBuffer);
+        const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+        copiedPages.forEach((page) => {
+          // console.log('page', page.getWidth(), page.getHeight());
+          // page.setWidth(210);
+          mergedPdf.addPage(page);
+          });
+      });
+      await Promise.all(actions);
+      const mergedPdfFile = await mergedPdf.save();
+      const fileBuffer = Buffer.from(mergedPdfFile)
+      const blob = new Blob([fileBuffer],  {type : 'application/pdf'} );
+      await saveFile(blob);
+    //  return mergedPdfFile;
+    }
+  
+
   const saveFile = async (blob:Blob) => {
+   
+    const date =new Date(Date.now() );;
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0'); // Months are zero-indexed
+    const year = date.getFullYear();
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
     const a = document.createElement('a');
-    a.download = `KYC_docs_${Date.now()}.pdf`;
+    a.download = `KYC_docs_${day}${month}${year}_${hours}${minutes}.pdf`;
     a.href = URL.createObjectURL(blob);
     a.addEventListener('click', (e) => {
       setTimeout(() => URL.revokeObjectURL(a.href), 30 * 1000);
     });
     a.click();
+    setFiles(undefined);
+    setSuccess('files prepared and saved successfully')
   };
 
-  const prepareFiles = async () => {
-
-   
-    console.log('files to prepare->'+file?.name);
-    //combine selected files in one pdf
-    //save in local disk
-    const arrayBuffer = await file?.arrayBuffer()
-    if (arrayBuffer) {
-    const fileBuffer = Buffer.from(arrayBuffer)
-    const blob = new Blob([fileBuffer],  {type : 'application/pdf'} );
-    await saveFile(blob);
-    }
-
-  }
 
   
 
@@ -62,7 +97,35 @@ const PrepareDocs = ({walletModel}: PropsPrepareDocs) => {
     setSuccess(null);
   };
 
+  const generate = (): string[] => {
+    const filenames = []
+    if (files) {
+      let i=0;
+      for (i=0; i<files.length;i++) {
+        if (files.item(i) !=null ) { 
+          if (files.item(i)?.name !=null) {
+            const filen = files.item(i)?.name 
+            if (filen)
+              filenames.push(filen)
+          }
+        }
+      }
+      return(filenames)
+    }
+    return []
+  }
 
+  useEffect(() => {
+
+  if (files) {
+ 
+    for (let i=0; i<files.length;i++) {
+      console.log('fileselected->'+files.item(i)?.name)
+    }
+  }
+
+
+  }, [files]);
 
   if (loading) {
     return (
@@ -71,6 +134,17 @@ const PrepareDocs = ({walletModel}: PropsPrepareDocs) => {
       </Box>
     );
   }
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) setFiles(e.target.files)
+  };
+
+  const handleClick = () => {
+    if (hiddenFileInput && hiddenFileInput.current) {
+      hiddenFileInput.current.click()
+    }
+   
+  };
 
   return (
     <Container>
@@ -116,11 +190,42 @@ const PrepareDocs = ({walletModel}: PropsPrepareDocs) => {
         paddingInline: '25px',
         marginTop: '15px'
          }}>
-      
-           <input type="file" accept="application/pdf" multiple style={{marginTop:"15px"}} onChange={(e) => {
-               if (e.target.files) setFile(e.target.files[0])
-           } } />
-           <Button sx={{marginTop:'15px'}} variant="contained" size="small" disabled={!file} onClick={upload}>Prepare</Button>
+
+           <Button sx={{marginTop:'15px'}} variant="contained" size="small"  onClick={handleClick}>Select Files</Button>
+            <input type="file" id="inputFile" accept="application/pdf" multiple style={{marginTop:"15px" ,display: 'none' }}
+            onChange={(e)=>handleChange(e)}
+             ref={hiddenFileInput}
+          
+            // onChange={(e) => {
+            //   if (e.target.files) setFiles(e.target.files)
+            // }} 
+           /> 
+
+         {(files && files?.length>0) ? (
+            <List dense>
+            {generate().map((filename) => {
+              const labelId = `checkbox-list-label-${filename}`;
+              return (  
+              <ListItem
+                 key={filename}
+                 >
+                <ListItemText
+                  id={labelId} primary={filename}
+                  
+                />
+              </ListItem>
+              
+            )
+          })}
+          
+          </List>
+         ) : (
+          <Typography sx={{textAlign: 'left', marginTop: '10px'}}>
+          no files selected.
+        </Typography>
+         )
+        }
+           <Button sx={{marginTop:'15px'}} variant="contained" size="small" disabled={!files} onClick={merge}>Prepare</Button>
         </Box>
 
       </Box>

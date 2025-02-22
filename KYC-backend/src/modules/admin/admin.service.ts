@@ -44,11 +44,11 @@ import DecryptDto, { MockDecryptDto } from "./dto/decrypt.dto.js";
 import OAuth2Error from "../../shared/errors/OAuth2Error.js";
 import {Event, EventsDocument } from "../../shared/models/events.model.js";
 import { ReqEventsDto } from "./dto/reqevents.dto.js";
-import KYCVerifiedDto, { PersonalDataObject } from "./dto/kycverified.dto.js";
+import KYCVerifiedDto, { PersonalDataObject, UpdateEventDto } from "./dto/kycverified.dto.js";
 import { kycverifiedSchema } from "./validators/kycVerified.validator.js";
 import { cryptoKeyToHexString, encryptEncryptionKey, generateEncKey } from "../tnt/utils/tntUtils.js";
 import crypto from "node:crypto";
-import { KYC_PERSONAL_SHARED, KYC_SHARED } from "../tnt/interfaces/utils.interface.js";
+import { KYC_PERSONAL_SHARED, KYC_SHARED, KYC_VERIFIED } from "../tnt/interfaces/utils.interface.js";
 
 
 
@@ -275,6 +275,76 @@ export class AdminService {
 
   }
 
+  async getVerified(
+    decryptDto : DecryptDto
+  ): Promise<object> {
+
+    if (this.opMode !== "BANK") {
+      this.logger.error('only available to Banks');
+      throw new BadRequestError(
+       'only available to banks'
+      );
+     }
+
+     const {documentId, eventId} = decryptDto;
+
+     const event = await this.eventModel.findOne({documentId,eventId,eventType:"KYC_docs_verified"}).exec() as Event;
+
+     if (!event) {
+      throw new OAuth2Error("invalid_request", {
+        errorDescription: 'could not find KYC_docs_verified event in events db',
+      });
+     }
+
+     if (!event.randomEncKey) {
+      throw new OAuth2Error("invalid_request", {
+        errorDescription: 'encryption key not found in events db',
+      });
+     }
+
+     const {sender, kycEvent, success} = await this.tntService.getEvent(documentId, eventId);
+ 
+     //event sender is the wallet es256k did
+     //encryption was perfromed with es256 wallet private key. -> Need wallet es256 public key for decryption
+ 
+     if (!sender || !success) {
+      throw new OAuth2Error("invalid_request", {
+        errorDescription: 'could not get event data',
+      });
+     }
+ 
+     if (kycEvent.eventType != "KYC_docs_verified") {
+ 
+      throw new OAuth2Error("invalid_request", {
+        errorDescription: `invalid event type -> ${kycEvent.eventType}`,
+      });
+      
+     }
+ 
+    
+ 
+     const kycVerifiedEvent = kycEvent as KYC_VERIFIED;
+     
+     if (!kycVerifiedEvent.encryptedPersonalData) {
+
+      throw new OAuth2Error("invalid_request", {
+        errorDescription: `encryptedPersonalData is missing from event`,
+      });
+     }
+
+     const result= await this.tntService.adminGetVerified(kycVerifiedEvent.encryptedPersonalData,event.randomEncKey);
+     
+     if ('success' in result) {
+       let error;
+       if ('errors' in result) error = result.errors[0]; else error='no error description'
+       throw new OAuth2Error("invalid_request", {
+          errorDescription: error,
+        });
+      }
+      return result;
+
+  }
+
   async decryptPersonalData(
     decryptDto : DecryptDto
   ): Promise<object> {
@@ -415,7 +485,41 @@ export class AdminService {
 
     }
 
+    async updateEvent(
+      newEvent : UpdateEventDto
+    ): Promise<CheckResult> {
+  
+      if (this.opMode !== "BANK") {
+        this.logger.error('only available to Banks');
+        throw new BadRequestError(
+         'only available to banks'
+        );
+       }
 
+       const {documentId,eventId,eventType,status} = newEvent;
+
+       const event = await this.eventModel.findOne({documentId,eventId,eventType}).exec() as Event;
+
+       if (event) {
+        try {
+          await this.eventModel.findByIdAndUpdate(event._id, {status}).exec();
+        } catch (e) {
+          return {
+            success:false,
+            errors:['could not update event']
+            
+          }
+        }
+
+        return {success:true}
+       }
+
+       return {
+        success:false,
+        errors:['could not find event']
+        
+      } 
+    }
 
   async eventDetails(
     //authorizationHeader: string,
